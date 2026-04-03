@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Editor</title>
+    <style>
+        @font-face {
+            font-family: 'Chicago';
+            src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+
+        body {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            background: #c0c0c0;
+            color: #000;
+            cursor: default;
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .desktop {
+            padding: 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+            max-width: 1100px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .mac-window {
+            background: #fff;
+            border: 2px solid #000;
+            box-shadow: 2px 2px 0 #000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #upload-window {
+            flex-shrink: 0;
+        }
+
+        #editor-window {
+            flex: 1;
+            min-height: 0;
+            display: none;
+        }
+        #editor-window.is-open {
+            display: flex;
+        }
+
+        .title-bar {
+            height: 22px;
+            background: #fff;
+            border-bottom: 2px solid #000;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            position: relative;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .title-bar-lines {
+            position: absolute;
+            left: 28px;
+            right: 28px;
+            top: 3px;
+            bottom: 3px;
+            background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
+        }
+
+        .title-bar-text {
+            position: relative;
+            z-index: 1;
+            background: #fff;
+            padding: 0 8px;
+            margin: 0 auto;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .close-box {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #000;
+            background: #fff;
+            position: relative;
+            z-index: 1;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .close-box::before,
+        .close-box::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 2px;
+            background: #000;
+        }
+        .close-box::before { transform: translate(-50%, -50%) rotate(45deg); }
+        .close-box::after { transform: translate(-50%, -50%) rotate(-45deg); }
+        .close-box:hover { background: #000; }
+        .close-box:hover::before,
+        .close-box:hover::after { background: #fff; }
+        .close-box:active { background: #000; }
+
+        .window-content { padding: 16px; }
+
+        .window-content--editor {
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .mac-btn {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            padding: 5px 16px;
+            border: 2px solid #000;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .mac-btn:hover { background: #ddd; }
+        .mac-btn:active { background: #000; color: #fff; }
+        .mac-btn:disabled { color: #999; border-color: #999; cursor: default; background: #fff; }
+        .mac-btn:disabled:hover { background: #fff; }
+
+        .upload-area {
+            border: 2px dashed #000;
+            padding: 36px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #fff;
+            transition: background 0.15s;
+        }
+        .upload-area:hover { background: #eee; }
+        .upload-area.dragover { background: #ddd; border-style: solid; }
+        .upload-icon { font-size: 28px; margin-bottom: 6px; display: block; }
+
+        .preview-wrap {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            border: 2px inset #888;
+            background-color: #c0c0c0;
+            background-image:
+                linear-gradient(45deg, #b0b0b0 25%, transparent 25%),
+                linear-gradient(-45deg, #b0b0b0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #b0b0b0 75%),
+                linear-gradient(-45deg, transparent 75%, #b0b0b0 75%);
+            background-size: 12px 12px;
+            background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+        }
+        .preview-wrap video {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+
+        .controls-bar {
+            padding: 8px 16px;
+            border-top: 2px solid #000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            background: #fff;
+        }
+
+        /* Timeline: same language as AudioEditor (.canvas-container / .global-timeline-wrap / .timeline-row) */
+        .timeline-bar {
+            padding: 12px 16px;
+            border-top: 1px solid #ccc;
+            background: #fff;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .timeline-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+        .timeline-time {
+            font-weight: bold;
+            min-width: 3.5em;
+        }
+        .timeline-time--muted {
+            color: #666;
+        }
+        .timeline-info-text {
+            font-size: 11px;
+            color: #666;
+            line-height: 1.4;
+            margin: 0 8px;
+            flex: 1;
+            text-align: center;
+        }
+
+        .timeline-track-wrap {
+            position: relative;
+            margin: 8px 0 0;
+            border: 2px inset #888;
+            background: #fff;
+            overflow: hidden;
+        }
+        .timeline-track {
+            position: relative;
+            height: 80px;
+            background: #fff;
+            cursor: ew-resize;
+            touch-action: none;
+        }
+        .timeline-track.is-dragging { cursor: grabbing; }
+        .timeline-shade {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.06);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .timeline-shade--l { left: 0; }
+        .timeline-shade--r { right: 0; }
+        .timeline-selection {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            z-index: 1;
+            box-sizing: border-box;
+            min-width: 4px;
+            border-left: 4px solid #000;
+            border-right: 4px solid #000;
+            background: rgba(0, 0, 0, 0.12);
+            pointer-events: none;
+        }
+        .timeline-playhead {
+            position: absolute;
+            top: 12px;
+            bottom: 0;
+            width: 3px;
+            margin-left: -1px;
+            z-index: 4;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                to bottom,
+                #000 0px,
+                #000 2px,
+                transparent 2px,
+                transparent 5px
+            );
+        }
+        .timeline-playhead::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 10px solid #000;
+        }
+
+        .trim-bar {
+            padding: 8px 16px;
+            border-top: 1px solid #ccc;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 12px;
+        }
+        .trim-bar label { font-weight: bold; }
+        .trim-input {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 12px;
+            width: 65px;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 2px 5px;
+            outline: none;
+            text-align: center;
+        }
+        .trim-input:focus { border-color: #000; }
+        .trim-sep { color: #555; }
+
+        .info-row {
+            font-size: 12px;
+            padding: 10px 16px 8px;
+            border-top: 1px solid #ccc;
+            line-height: 1.6;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .info-row .label { color: #555; }
+        .info-row b { color: #000; font-weight: bold; }
+
+        .resize-bar {
+            padding: 8px 16px;
+            border-top: 1px solid #ccc;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 12px;
+        }
+        .resize-bar label { font-weight: bold; }
+        .resize-input {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 12px;
+            width: 60px;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 2px 5px;
+            outline: none;
+            text-align: center;
+        }
+        .resize-input:focus { border-color: #000; }
+        .resize-lock {
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        .chk-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
+        .chk-row input[type="checkbox"] {
+            accent-color: #000;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+
+        .progress-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 14px;
+            gap: 10px;
+            z-index: 10;
+        }
+        .progress-overlay .bar-bg {
+            width: 200px;
+            height: 12px;
+            border: 2px solid #fff;
+            background: #000;
+        }
+        .progress-overlay .bar-fill {
+            height: 100%;
+            background: #fff;
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        ::selection { background: #000; color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="desktop">
+    <div class="mac-window" id="upload-window">
+        <div class="title-bar">
+            <div class="title-bar-lines"></div>
+            <div class="title-bar-text">Video Editor</div>
+        </div>
+        <div class="window-content">
+            <div class="upload-area" id="upload-area">
+                <span class="upload-icon">&#9654;</span>
+                <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">Drop video here</div>
+                <div style="font-size:12px;color:#666;">…or click to select a file</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mac-window" id="editor-window">
+        <div class="title-bar">
+            <div class="close-box" onclick="closeEditor()"></div>
+            <div class="title-bar-lines"></div>
+            <div class="title-bar-text" id="editor-title">Video Editor</div>
+        </div>
+        <div class="window-content window-content--editor">
+            <div class="preview-wrap" id="preview-wrap">
+                <video id="video" preload="metadata"></video>
+                <div class="progress-overlay" id="progress" style="display:none">
+                    <div>Processing…</div>
+                    <div class="bar-bg"><div class="bar-fill" id="progress-bar"></div></div>
+                    <div id="progress-text">0%</div>
+                </div>
+            </div>
+
+            <div class="timeline-bar">
+                <div class="timeline-row">
+                    <span class="timeline-time" id="time-current">0:00</span>
+                    <span class="timeline-info-text">Drag the thick trim lines or the middle band · click elsewhere to seek</span>
+                    <span class="timeline-time timeline-time--muted" id="time-total">0:00</span>
+                </div>
+                <div class="timeline-track-wrap">
+                    <div class="timeline-track" id="timeline-track">
+                        <div class="timeline-shade timeline-shade--l" id="shade-left"></div>
+                        <div class="timeline-shade timeline-shade--r" id="shade-right"></div>
+                        <div class="timeline-selection" id="trim-range" style="display:none"></div>
+                        <div class="timeline-playhead" id="playhead"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls-bar">
+                <button class="mac-btn" id="btn-play" onclick="togglePlay()">&#9654; Play</button>
+                <div class="chk-row" style="margin-left:8px">
+                    <input type="checkbox" id="chk-audio" checked onchange="toggleAudio()">
+                    <label for="chk-audio">Keep audio</label>
+                </div>
+                <button class="mac-btn" onclick="resetSession()" style="margin-left:auto">&#8634; Reset</button>
+                <button class="mac-btn" onclick="exportVideo()">&#8615; Save</button>
+            </div>
+
+            <div class="trim-bar">
+                <label>In / Out (sec):</label>
+                <input class="trim-input" id="trim-start" type="text" value="0.00" onchange="onTrimInput()" title="Trim start (seconds)">
+                <span class="trim-sep">&#8594;</span>
+                <input class="trim-input" id="trim-end" type="text" value="0.00" onchange="onTrimInput()" title="Trim end (seconds)">
+                <span id="trim-duration" style="color:#555"></span>
+            </div>
+
+            <div class="resize-bar">
+                <label>Size:</label>
+                <input class="resize-input" id="resize-w" type="number" onchange="onResizeW()">
+                <span>&#215;</span>
+                <input class="resize-input" id="resize-h" type="number" onchange="onResizeH()">
+                <span class="resize-lock" id="lock-ratio" onclick="toggleLock()" title="Lock aspect ratio">[=]</span>
+                <button class="mac-btn" onclick="resetSize()" style="font-size:11px;padding:3px 10px">Original</button>
+            </div>
+
+            <div class="info-row" id="info-row"></div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { FFmpeg } from './vendor/ffmpeg-esm/index.js';
+    import { toBlobURL } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+
+    let ffmpegProgressLabel = 'Working';
+
+    const video = document.getElementById('video');
+    const timelineTrack = document.getElementById('timeline-track');
+    const shadeLeft = document.getElementById('shade-left');
+    const shadeRight = document.getElementById('shade-right');
+    const trimRangeEl = document.getElementById('trim-range');
+    const playhead = document.getElementById('playhead');
+    const uploadArea = document.getElementById('upload-area');
+    const progressEl = document.getElementById('progress');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+
+    let originalFile = null;
+    let originalW = 0, originalH = 0;
+    let lockRatio = true;
+    let trimStart = 0, trimEnd = 0;
+    let seeking = false;
+    let ffmpeg = null;
+    const MIN_TRIM_SEC = 1 / 25;
+    let timelineDrag = null;
+    let trimMoveState = null;
+
+    window.togglePlay = togglePlay;
+    window.onTrimInput = onTrimInput;
+    window.toggleAudio = toggleAudio;
+    window.toggleLock = toggleLock;
+    window.onResizeW = onResizeW;
+    window.onResizeH = onResizeH;
+    window.resetSize = resetSize;
+    window.resetSession = resetSession;
+    window.closeEditor = closeEditor;
+    window.exportVideo = exportVideo;
+
+    uploadArea.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'video/*';
+        input.onchange = e => { if (e.target.files[0]) loadVideo(e.target.files[0]); };
+        input.click();
+    });
+
+    uploadArea.addEventListener('dragover', e => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+    uploadArea.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files[0]) loadVideo(e.dataTransfer.files[0]);
+    });
+
+    function showProgress(text, pct) {
+        progressEl.style.display = 'flex';
+        progressText.textContent = text;
+        progressBar.style.width = (pct || 0) + '%';
+    }
+    function hideProgress() { progressEl.style.display = 'none'; }
+
+    async function readBlobAsUint8Array(blob) {
+        if (blob && typeof blob.arrayBuffer === 'function') {
+            try {
+                return new Uint8Array(await blob.arrayBuffer());
+            } catch (_) { /* try FileReader */ }
+        }
+        return new Promise((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(new Uint8Array(fr.result));
+            fr.onerror = () => reject(fr.error || new Error('FileReader failed'));
+            fr.readAsArrayBuffer(blob);
+        });
+    }
+
+    /** Prefer reading the active preview blob (works when File.arrayBuffer fails in some browsers). */
+    async function readVideoBytesForExport() {
+        const src = video.src || '';
+        if (src.startsWith('blob:')) {
+            try {
+                const res = await fetch(src);
+                if (!res.ok) throw new Error('blob fetch not ok');
+                return new Uint8Array(await res.arrayBuffer());
+            } catch (e) {
+                console.warn('Reading preview blob failed, using file:', e);
+            }
+        }
+        return readBlobAsUint8Array(originalFile);
+    }
+
+    function loadVideo(file) {
+        originalFile = file;
+        if (video.src) URL.revokeObjectURL(video.src);
+
+        const url = URL.createObjectURL(file);
+        tryLoadUrl(url, file);
+    }
+
+    function tryLoadUrl(url, file) {
+        video.onloadedmetadata = null;
+        video.onerror = null;
+
+        video.onerror = () => {
+            URL.revokeObjectURL(url);
+            originalFile = null;
+            alert('This video format can’t be played in the browser. Use an MP4 (H.264) or WebM file, or convert it outside this app first.');
+        };
+
+        video.onloadedmetadata = () => {
+            onVideoReady();
+        };
+
+        video.preload = 'metadata';
+        video.src = url;
+        video.load();
+    }
+
+    function onVideoReady() {
+        originalW = video.videoWidth;
+        originalH = video.videoHeight;
+        trimStart = 0;
+        trimEnd = video.duration;
+
+        document.getElementById('resize-w').value = originalW;
+        document.getElementById('resize-h').value = originalH;
+        syncTrimUI();
+        updateInfo();
+
+        document.getElementById('editor-title').textContent = originalFile ? originalFile.name : 'Video Editor';
+        document.getElementById('editor-window').classList.add('is-open');
+        hideProgress();
+    }
+
+    async function loadFFmpeg() {
+        if (ffmpeg && ffmpeg.loaded) return ffmpeg;
+        ffmpeg = new FFmpeg();
+        ffmpeg.on('progress', ({ progress }) => {
+            const pct = Math.max(0, Math.min(100, Math.round(progress * 100)));
+            showProgress(`${ffmpegProgressLabel}: ${pct}%`, pct);
+        });
+        ffmpegProgressLabel = 'Loading FFmpeg';
+        showProgress('Loading FFmpeg…', 0);
+        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+        await ffmpeg.load({
+            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        });
+        return ffmpeg;
+    }
+
+    function formatTime(s) {
+        if (isNaN(s)) s = 0;
+        const m = Math.floor(s / 60);
+        const sec = Math.floor(s % 60);
+        return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+    }
+
+    function formatTimePrecise(s) {
+        return Math.max(0, s).toFixed(2);
+    }
+
+    function getDuration() {
+        const d = video.duration;
+        return d && isFinite(d) && d > 0 ? d : 0;
+    }
+
+    function timeFromClientX(clientX) {
+        const r = timelineTrack.getBoundingClientRect();
+        if (r.width <= 0) return 0;
+        const d = getDuration();
+        const t = ((clientX - r.left) / r.width) * d;
+        return Math.max(0, Math.min(d, t));
+    }
+
+    function layoutTimeline() {
+        const d = getDuration();
+        if (!d) {
+            trimRangeEl.style.display = 'none';
+            playhead.style.left = '0%';
+            return;
+        }
+        trimRangeEl.style.display = 'block';
+        const pS = (trimStart / d) * 100;
+        const pE = (trimEnd / d) * 100;
+        shadeLeft.style.width = pS + '%';
+        shadeRight.style.left = pE + '%';
+        shadeRight.style.width = (100 - pE) + '%';
+        trimRangeEl.style.left = pS + '%';
+        trimRangeEl.style.width = Math.max(0.05, pE - pS) + '%';
+        playhead.style.left = (video.currentTime / d) * 100 + '%';
+    }
+
+    function updatePlayheadOnly() {
+        const d = getDuration();
+        if (!d) return;
+        playhead.style.left = (video.currentTime / d) * 100 + '%';
+    }
+
+    function endTimelineDrag(e) {
+        if (!timelineDrag) return;
+        try {
+            if (e && e.pointerId != null) timelineTrack.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+        timelineTrack.classList.remove('is-dragging');
+        timelineDrag = null;
+        trimMoveState = null;
+        seeking = false;
+    }
+
+    function beginScrubDrag(t) {
+        timelineDrag = 'seek';
+        seeking = true;
+        video.pause();
+        document.getElementById('btn-play').innerHTML = '&#9654; Play';
+        video.currentTime = t;
+        document.getElementById('time-current').textContent = formatTime(t);
+        layoutTimeline();
+    }
+
+    timelineTrack.addEventListener('pointerdown', e => {
+        const d = getDuration();
+        if (!d) return;
+        e.preventDefault();
+        const t = timeFromClientX(e.clientX);
+        const r = timelineTrack.getBoundingClientRect();
+        const pxPerSec = r.width / d;
+        const handleTol = 16;
+        const playheadGrabTol = 32;
+
+        const distStartPx = Math.abs(t - trimStart) * pxPerSec;
+        const distEndPx = Math.abs(t - trimEnd) * pxPerSec;
+        const distPlayPx = Math.abs(t - video.currentTime) * pxPerSec;
+
+        if (distStartPx <= handleTol && t <= trimEnd + 1e-6) {
+            timelineDrag = 'trim-start';
+        } else if (distEndPx <= handleTol && t >= trimStart - 1e-6) {
+            timelineDrag = 'trim-end';
+        } else if (distPlayPx <= playheadGrabTol) {
+            beginScrubDrag(t);
+        } else if (t > trimStart && t < trimEnd && distStartPx > handleTol && distEndPx > handleTol) {
+            timelineDrag = 'trim-move';
+            trimMoveState = { trimStart0: trimStart, trimEnd0: trimEnd, x0: e.clientX };
+            timelineTrack.classList.add('is-dragging');
+        } else {
+            beginScrubDrag(t);
+        }
+        try {
+            timelineTrack.setPointerCapture(e.pointerId);
+        } catch (_) {}
+    });
+
+    timelineTrack.addEventListener('pointermove', e => {
+        if (!timelineDrag) return;
+        const d = getDuration();
+        if (!d) return;
+        const t = timeFromClientX(e.clientX);
+
+        if (timelineDrag === 'seek') {
+            video.currentTime = t;
+            document.getElementById('time-current').textContent = formatTime(t);
+            layoutTimeline();
+            return;
+        }
+        if (timelineDrag === 'trim-start') {
+            trimStart = Math.max(0, Math.min(t, trimEnd - MIN_TRIM_SEC));
+            syncTrimUI();
+            return;
+        }
+        if (timelineDrag === 'trim-end') {
+            trimEnd = Math.min(d, Math.max(t, trimStart + MIN_TRIM_SEC));
+            syncTrimUI();
+            return;
+        }
+        if (timelineDrag === 'trim-move' && trimMoveState) {
+            const r = timelineTrack.getBoundingClientRect();
+            const pxPerSec = r.width / d;
+            const deltaT = (e.clientX - trimMoveState.x0) / pxPerSec;
+            const span = trimMoveState.trimEnd0 - trimMoveState.trimStart0;
+            let newStart = trimMoveState.trimStart0 + deltaT;
+            let newEnd = trimMoveState.trimEnd0 + deltaT;
+            if (newStart < 0) {
+                newStart = 0;
+                newEnd = span;
+            }
+            if (newEnd > d) {
+                newEnd = d;
+                newStart = Math.max(0, d - span);
+            }
+            trimStart = newStart;
+            trimEnd = newEnd;
+            syncTrimUI();
+        }
+    });
+
+    timelineTrack.addEventListener('pointerup', endTimelineDrag);
+    timelineTrack.addEventListener('pointercancel', endTimelineDrag);
+    timelineTrack.addEventListener('lostpointercapture', () => {
+        timelineDrag = null;
+        trimMoveState = null;
+        timelineTrack.classList.remove('is-dragging');
+        seeking = false;
+    });
+
+    video.addEventListener('timeupdate', () => {
+        if (seeking) return;
+        updatePlayheadOnly();
+        document.getElementById('time-current').textContent = formatTime(video.currentTime);
+
+        if (video.currentTime >= trimEnd) {
+            video.pause();
+            video.currentTime = trimEnd;
+            document.getElementById('btn-play').innerHTML = '&#9654; Play';
+            updatePlayheadOnly();
+        }
+    });
+
+    video.addEventListener('loadedmetadata', () => {
+        document.getElementById('time-total').textContent = formatTime(video.duration);
+        layoutTimeline();
+    });
+
+    window.addEventListener('resize', () => layoutTimeline());
+
+    function togglePlay() {
+        const btn = document.getElementById('btn-play');
+        if (video.paused) {
+            if (video.currentTime < trimStart) video.currentTime = trimStart;
+            if (video.currentTime >= trimEnd) video.currentTime = trimStart;
+            video.play();
+            btn.innerHTML = '&#10074;&#10074; Pause';
+        } else {
+            video.pause();
+            btn.innerHTML = '&#9654; Play';
+        }
+    }
+
+    function onTrimInput() {
+        const d = getDuration() || 0;
+        if (!d) return;
+        trimStart = Math.max(0, parseFloat(document.getElementById('trim-start').value) || 0);
+        trimEnd = Math.min(d, parseFloat(document.getElementById('trim-end').value) || d);
+        if (trimEnd < trimStart + MIN_TRIM_SEC) trimEnd = Math.min(d, trimStart + MIN_TRIM_SEC);
+        syncTrimUI();
+    }
+
+    function syncTrimUI() {
+        document.getElementById('trim-start').value = formatTimePrecise(trimStart);
+        document.getElementById('trim-end').value = formatTimePrecise(trimEnd);
+        const dur = trimEnd - trimStart;
+        document.getElementById('trim-duration').textContent = `(${formatTime(dur)})`;
+        layoutTimeline();
+    }
+
+    function toggleAudio() {
+        video.muted = !document.getElementById('chk-audio').checked;
+    }
+
+    function toggleLock() {
+        lockRatio = !lockRatio;
+        document.getElementById('lock-ratio').textContent = lockRatio ? '[=]' : '[/]';
+    }
+
+    function onResizeW() {
+        const w = parseInt(document.getElementById('resize-w').value) || originalW;
+        if (lockRatio && originalW) {
+            const h = Math.round(w * originalH / originalW);
+            document.getElementById('resize-h').value = h;
+        }
+    }
+
+    function onResizeH() {
+        const h = parseInt(document.getElementById('resize-h').value) || originalH;
+        if (lockRatio && originalH) {
+            const w = Math.round(h * originalW / originalH);
+            document.getElementById('resize-w').value = w;
+        }
+    }
+
+    function resetSize() {
+        document.getElementById('resize-w').value = originalW;
+        document.getElementById('resize-h').value = originalH;
+    }
+
+    function resetSession() {
+        trimStart = 0;
+        trimEnd = video.duration;
+        syncTrimUI();
+        resetSize();
+        document.getElementById('chk-audio').checked = true;
+        video.muted = false;
+        video.currentTime = 0;
+    }
+
+    function closeEditor() {
+        if (ffmpeg) {
+            try { ffmpeg.terminate(); } catch (_) {}
+            ffmpeg = null;
+        }
+        if (video.src) URL.revokeObjectURL(video.src);
+        video.removeAttribute('src');
+        video.load();
+        originalFile = null;
+        originalW = 0;
+        originalH = 0;
+        document.getElementById('editor-window').classList.remove('is-open');
+        document.getElementById('editor-title').textContent = 'Video Editor';
+        document.getElementById('btn-play').innerHTML = '&#9654; Play';
+        hideProgress();
+    }
+
+    function updateInfo() {
+        const bar = document.getElementById('info-row');
+        const size = originalFile ? (originalFile.size / 1024 / 1024).toFixed(1) + ' MB' : '—';
+        const ext = originalFile ? originalFile.name.split('.').pop().toUpperCase() : '—';
+        bar.innerHTML = `
+            <span><span class="label">File:</span> <b>${originalFile ? originalFile.name : '—'}</b></span>
+            <span><span class="label">Size:</span> <b>${size}</b></span>
+            <span><span class="label">Format:</span> <b>${ext}</b></span>
+            <span><span class="label">Resolution:</span> <b>${originalW}&#215;${originalH}</b></span>
+            <span><span class="label">Duration:</span> <b>${formatTime(video.duration)}</b></span>
+        `;
+    }
+
+    async function exportVideo() {
+        if (!originalFile) {
+            alert('No video loaded.');
+            return;
+        }
+
+        const outW = Math.max(2, (parseInt(document.getElementById('resize-w').value, 10) || originalW) & ~1);
+        const outH = Math.max(2, (parseInt(document.getElementById('resize-h').value, 10) || originalH) & ~1);
+        const keepAudio = document.getElementById('chk-audio').checked;
+        const start = Math.max(0, trimStart);
+        const end = Math.min(video.duration || trimEnd, trimEnd);
+        if (!(end > start)) {
+            alert('Trim end must be greater than trim start.');
+            return;
+        }
+        const duration = end - start;
+        const baseName = originalFile.name.replace(/\.[^.]+$/, '') || 'video';
+
+        let saveHandle = null;
+        if (window.showSaveFilePicker) {
+            try {
+                saveHandle = await window.showSaveFilePicker({
+                    suggestedName: baseName + '.mp4',
+                    types: [{ description: 'MP4 Video', accept: { 'video/mp4': ['.mp4'] } }]
+                });
+            } catch (e) {
+                if (e.name === 'AbortError') return;
+            }
+        }
+
+        try {
+            const ff = await loadFFmpeg();
+            ffmpegProgressLabel = 'Exporting';
+
+            let bytes;
+            try {
+                bytes = await readVideoBytesForExport();
+            } catch (readErr) {
+                console.error(readErr);
+                alert('Could not read the video data. Try reloading the file (pick it again or drag it onto the window).');
+                hideProgress();
+                return;
+            }
+            if (!bytes || !bytes.byteLength) {
+                alert('The video data appears empty. Try choosing the file again.');
+                hideProgress();
+                return;
+            }
+
+            try { await ff.deleteFile('input'); } catch (_) {}
+            try { await ff.deleteFile('output.mp4'); } catch (_) {}
+
+            showProgress('Reading file…', 5);
+            await ff.writeFile('input', bytes);
+
+            const args = [
+                '-ss', String(start),
+                '-i', 'input',
+                '-t', String(duration),
+                '-vf', `scale=${outW}:${outH}`,
+                '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+                '-movflags', '+faststart',
+            ];
+            if (keepAudio) {
+                args.push('-c:a', 'aac', '-b:a', '128k');
+            } else {
+                args.push('-an');
+            }
+            args.push('output.mp4');
+
+            await ff.exec(args);
+
+            let data;
+            try {
+                data = await ff.readFile('output.mp4');
+            } catch (readOutErr) {
+                console.error(readOutErr);
+                alert('Export failed: output file was not created. The clip may be too long or the file too large for the browser.');
+                try { await ff.deleteFile('input'); } catch (_) {}
+                try { await ff.deleteFile('output.mp4'); } catch (_) {}
+                hideProgress();
+                return;
+            }
+
+            try { await ff.deleteFile('input'); } catch (_) {}
+            try { await ff.deleteFile('output.mp4'); } catch (_) {}
+
+            if (!data || !data.byteLength) {
+                alert('Export produced an empty file. Try a shorter clip or lower resolution.');
+                hideProgress();
+                return;
+            }
+
+            const blob = new Blob([data], { type: 'video/mp4' });
+
+            if (saveHandle) {
+                const writable = await saveHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } else {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = baseName + '.mp4';
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+            }
+        } catch (e) {
+            console.error('Export failed:', e);
+            const msg = (e && e.message) ? e.message : String(e);
+            alert('Export failed: ' + msg);
+        }
+        hideProgress();
+    }
+</script>
+</body>
+</html>

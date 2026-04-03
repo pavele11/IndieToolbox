@@ -16,6 +16,8 @@ Styled after classic Macintosh System software, with a desktop environment, drag
 
 **Time** — Task list with Pomodoro timer, Gantt chart for scheduling across calendar days, goals with date ranges, and a notes tab. Everything is saved to a local `.json` file and automatically reconnects on next launch.
 
+**Video Editor** — Preview video files, view file info (size, resolution, duration), resize with locked or free aspect ratio, trim from start or end, toggle audio on/off, and export to WebM.
+
 ## License
 
 See [LICENSE](LICENSE) for details. Free for personal and non-commercial use.
