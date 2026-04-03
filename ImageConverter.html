@@ -358,6 +358,7 @@
         let originalImage = null;
         let originalFileName = '';
         let originalFileSize = 0;
+        let originalFileHandle = null;
         let workCanvas = document.createElement('canvas');
         let workCtx = workCanvas.getContext('2d');
 
@@ -379,15 +380,46 @@
 
         // ================ UPLOAD ================
 
-        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('click', async () => {
+            if (window.showOpenFilePicker) {
+                try {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [{
+                            description: 'Images',
+                            accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.heic', '.heif', '.svg', '.ico', '.tiff'] }
+                        }],
+                        multiple: false
+                    });
+                    originalFileHandle = handle;
+                    loadFile(await handle.getFile());
+                } catch (e) {
+                    if (e.name !== 'AbortError') console.error(e);
+                }
+            } else {
+                fileInput.click();
+            }
+        });
         uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
         uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
-        uploadArea.addEventListener('drop', (e) => {
+        uploadArea.addEventListener('drop', async (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
+            originalFileHandle = null;
+            const item = e.dataTransfer.items && e.dataTransfer.items[0];
+            if (item && item.getAsFileSystemHandle) {
+                try {
+                    const handle = await item.getAsFileSystemHandle();
+                    if (handle && handle.kind === 'file') {
+                        originalFileHandle = handle;
+                        loadFile(await handle.getFile());
+                        return;
+                    }
+                } catch (_) {}
+            }
             if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
         });
         fileInput.addEventListener('change', (e) => {
+            originalFileHandle = null;
             if (e.target.files.length) loadFile(e.target.files[0]);
             e.target.value = '';
         });
@@ -756,12 +788,31 @@
 
         // ================ DOWNLOAD ================
 
-        function downloadImage() {
+        async function downloadImage() {
             if (!workCanvas.width) return;
+
+            const fmt = document.getElementById('out-format').value;
+            const baseName = originalFileName.replace(/\.[^.]+$/, '') || 'image';
+            const extMap = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/bmp': '.bmp' };
+            const ext = extMap[fmt] || '.png';
+            const fileName = baseName + ext;
+
+            let fileHandle = null;
+            if (window.showSaveFilePicker) {
+                try {
+                    const opts = {
+                        suggestedName: fileName,
+                        types: [{ description: 'Image', accept: { [fmt]: [ext] } }]
+                    };
+                    if (originalFileHandle) opts.startIn = originalFileHandle;
+                    fileHandle = await window.showSaveFilePicker(opts);
+                } catch (e) {
+                    if (e.name === 'AbortError') return;
+                }
+            }
 
             const outW = parseInt(document.getElementById('out-width').value) || workCanvas.width;
             const outH = parseInt(document.getElementById('out-height').value) || workCanvas.height;
-            const fmt = document.getElementById('out-format').value;
             const quality = parseInt(document.getElementById('out-quality').value) / 100;
 
             const outCanvas = document.createElement('canvas');
@@ -778,27 +829,26 @@
             outCtx.imageSmoothingQuality = 'high';
             outCtx.drawImage(workCanvas, 0, 0, outW, outH);
 
-            const baseName = originalFileName.replace(/\.[^.]+$/, '') || 'image';
-
+            let blob;
             if (fmt === 'image/bmp') {
-                const blob = encodeBMP(outCanvas);
-                triggerDownload(blob, baseName + '.bmp');
+                blob = encodeBMP(outCanvas);
             } else {
-                const ext = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }[fmt] || '.png';
-                outCanvas.toBlob((blob) => {
-                    if (!blob) { alert('Export failed — format may not be supported by your browser.'); return; }
-                    triggerDownload(blob, baseName + ext);
-                }, fmt, quality);
+                blob = await new Promise(r => outCanvas.toBlob(r, fmt, quality));
+                if (!blob) { alert('Export failed — format may not be supported by your browser.'); return; }
             }
-        }
 
-        function triggerDownload(blob, name) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = name;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            if (fileHandle) {
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } else {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+            }
         }
 
         function encodeBMP(canvas) {
