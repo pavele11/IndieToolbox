@@ -14,7 +14,7 @@ Styled after classic Macintosh System software, with a desktop environment, drag
 
 **Audio Mixer** — Load multiple audio tracks, trim, apply fades, adjust volume, and arrange them on a shared timeline by dragging. Set custom timeline length to add pauses and gaps. Preview the mix and export to WAV.
 
-**Tasks** — A simple task list with built-in Pomodoro timer. Tasks are saved to a local `.json` file on your machine and automatically reconnect on next launch. Set session duration, start/pause/stop the timer per task.
+**Time** — Task list with Pomodoro timer, Gantt chart for scheduling across calendar days, goals with date ranges, and a notes tab. Everything is saved to a local `.json` file and automatically reconnects on next launch.
 
 ## License
 

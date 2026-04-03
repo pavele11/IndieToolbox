@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tasks</title>
+    <title>Time</title>
     <style>
         @font-face {
             font-family: 'Chicago';
@@ -15,24 +15,36 @@
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
+        html, body { height: 100%; }
+
         body {
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
             font-size: 13px;
             background: #c0c0c0;
             color: #000;
-            min-height: 100vh;
             cursor: default;
             -webkit-font-smoothing: none;
             -moz-osx-font-smoothing: none;
+            display: flex;
+            flex-direction: column;
         }
 
-        .desktop { padding: 12px; max-width: 800px; margin: 0 auto; }
+        .desktop {
+            padding: 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
 
         .mac-window {
             background: #fff;
             border: 2px solid #000;
-            margin-bottom: 12px;
             box-shadow: 2px 2px 0 #000;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
         }
 
         .title-bar {
@@ -138,7 +150,7 @@
         .add-input:focus { border-color: #000; }
         .add-input::placeholder { color: #999; }
 
-        .task-list { list-style: none; min-height: 60px; }
+        .task-list { list-style: none; min-height: 60px; flex: 1; overflow-y: auto; }
 
         .task-item {
             display: flex;
@@ -239,6 +251,216 @@
             font-size: 14px;
         }
 
+        .tab-bar {
+            display: flex;
+            border-bottom: 2px solid #000;
+            background: #ddd;
+        }
+        .tab {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            font-weight: bold;
+            padding: 5px 18px;
+            background: #ddd;
+            border: none;
+            border-right: 1px solid #aaa;
+            cursor: pointer;
+            color: #555;
+        }
+        .tab:hover { background: #eee; }
+        .tab.active {
+            background: #fff;
+            color: #000;
+            border-bottom: 2px solid #fff;
+            margin-bottom: -2px;
+        }
+
+        #app-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .tab-panel { display: none; min-height: 0; }
+        .tab-panel.active { display: flex; flex-direction: column; flex: 1; }
+
+        .gantt-nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-bottom: 1px solid #ccc;
+        }
+        .gantt-nav button {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 14px;
+            background: #fff;
+            border: 2px solid #000;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 26px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .gantt-nav button:hover { background: #ddd; }
+        .gantt-nav button:active { background: #000; color: #fff; }
+        .gantt-nav span { font-weight: bold; min-width: 130px; text-align: center; }
+
+        .gantt-wrap {
+            overflow: auto;
+            padding: 0;
+            flex: 1;
+        }
+        .gantt-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 11px;
+        }
+        .gantt-table th, .gantt-table td {
+            border: 1px solid #ccc;
+            padding: 0;
+            text-align: center;
+            height: 24px;
+            min-width: 24px;
+        }
+        .gantt-table th {
+            background: #eee;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .gantt-table th.gantt-task-hdr {
+            text-align: left;
+            padding: 0 8px;
+            min-width: 120px;
+            max-width: 160px;
+            position: sticky;
+            left: 0;
+            z-index: 2;
+            background: #eee;
+        }
+        .gantt-table td.gantt-task-name {
+            text-align: left;
+            padding: 0 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 160px;
+            min-width: 120px;
+            position: sticky;
+            left: 0;
+            background: #fff;
+            z-index: 1;
+            font-weight: bold;
+        }
+        .gantt-table td.gantt-task-name.done-task {
+            color: #999;
+            text-decoration: line-through;
+            font-weight: normal;
+        }
+        .gantt-table td.gantt-day {
+            cursor: pointer;
+            transition: background 0.05s;
+        }
+        .gantt-table td.gantt-day:hover { background: #e0e0e0; }
+        .gantt-table td.gantt-day.filled { background: #000; }
+        .gantt-table td.gantt-day.filled:hover { background: #333; }
+        .gantt-table td.gantt-day.weekend { background: #f4f4f4; }
+        .gantt-table td.gantt-day.weekend.filled { background: #000; }
+        .gantt-table th.weekend-hdr { background: #e0e0e0; }
+        .gantt-table th.today-hdr { background: #ccc; }
+        .gantt-table td.gantt-day.today-col { border-color: #999; }
+
+        .gantt-empty {
+            text-align: center;
+            padding: 30px 20px;
+            color: #999;
+            font-size: 13px;
+        }
+
+        .notes-panel {
+            padding: 12px 16px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .notes-area {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            width: 100%;
+            flex: 1;
+            min-height: 120px;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 8px;
+            outline: none;
+            resize: none;
+            line-height: 1.5;
+        }
+        .notes-area:focus { border-color: #000; }
+        .notes-area::placeholder { color: #999; }
+
+        .goals-panel {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+        .goals-add-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-bottom: 1px solid #ccc;
+        }
+        .goal-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+        }
+        .goal-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+        .goal-header input[type="date"] {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 12px;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 2px 5px;
+            outline: none;
+        }
+        .goal-header input[type="date"]:focus { border-color: #000; }
+        .goal-sep { font-size: 12px; color: #666; }
+        .goal-range-label {
+            font-size: 15px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        .goal-desc {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            width: 100%;
+            min-height: 80px;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 5px 8px;
+            outline: none;
+            resize: none;
+            overflow: hidden;
+            line-height: 1.4;
+            field-sizing: content;
+        }
+        .goal-desc:focus { border-color: #000; }
+        .goal-desc::placeholder { color: #999; }
+
         ::selection { background: #000; color: #fff; }
     </style>
 </head>
@@ -248,13 +470,19 @@
     <div class="mac-window">
         <div class="title-bar">
             <div class="title-bar-lines"></div>
-            <div class="title-bar-text">Tasks</div>
+            <div class="title-bar-text">Time</div>
         </div>
 
         <div id="setup-screen" class="setup-screen">
-            <div class="setup-title">Link a tasks file to get started</div>
+            <div id="quick-connect" style="display:none;margin-bottom:16px">
+                <div class="setup-buttons">
+                    <button class="mac-btn" onclick="reconnectFile()" style="border-width:3px">&#9741; Connect <span id="quick-connect-name"></span></button>
+                </div>
+                <div style="border-bottom:1px solid #ccc;margin:20px 20px 0"></div>
+            </div>
+            <div class="setup-title">Link a file</div>
             <div class="setup-text">
-                Tasks are saved to a <b>.json</b> file on your computer. Create a new file or open an existing one. Every change you make is automatically written back to the file. Next time you open Tasks, just click <b>Open File</b> to reconnect to the same file and pick up where you left off.
+                Data is saved to a <b>.json</b> file on your computer. Create a new file or open an existing one.
             </div>
             <div class="setup-buttons">
                 <button class="mac-btn" onclick="createFile()">&#10010; Create New File</button>
@@ -269,30 +497,69 @@
                 <span class="file-status" id="file-status">No file linked</span>
             </div>
 
-            <div class="pomo-bar">
-                <label>Pomodoro:</label>
-                <input type="number" id="pomo-duration" min="1" max="120" value="25" onchange="pomoDuration=parseInt(this.value)||25"> min
-                <span class="pomo-global-timer" id="pomo-global-timer"></span>
+            <div class="tab-bar">
+                <button class="tab active" data-tab="tasks" onclick="switchTab('tasks')">Tasks</button>
+                <button class="tab" data-tab="gantt" onclick="switchTab('gantt')">Gantt</button>
+                <button class="tab" data-tab="goals" onclick="switchTab('goals')">Goals</button>
+                <button class="tab" data-tab="notes" onclick="switchTab('notes')">Notes</button>
             </div>
 
-            <div class="add-row">
-                <input class="add-input" id="add-input" type="text" placeholder="New task..." onkeydown="if(event.key==='Enter')addTask()">
-                <button class="mac-btn" onclick="addTask()">&#10010; Add</button>
+            <div id="panel-tasks" class="tab-panel active">
+                <div class="pomo-bar">
+                    <label>Pomodoro:</label>
+                    <input type="number" id="pomo-duration" min="1" max="120" value="25" onchange="pomoDuration=parseInt(this.value)||25"> min
+                    <span class="pomo-global-timer" id="pomo-global-timer"></span>
+                </div>
+
+                <div class="add-row">
+                    <input class="add-input" id="add-input" type="text" placeholder="New task..." onkeydown="if(event.key==='Enter')addTask()">
+                    <button class="mac-btn" onclick="addTask()">&#10010; Add</button>
+                </div>
+
+                <ul class="task-list" id="task-list"></ul>
+                <div class="task-count" id="task-count"></div>
             </div>
 
-            <ul class="task-list" id="task-list"></ul>
-            <div class="task-count" id="task-count"></div>
+            <div id="panel-gantt" class="tab-panel">
+                <div class="gantt-nav">
+                    <button onclick="ganttPrev()">&#9664;</button>
+                    <span id="gantt-month-label"></span>
+                    <button onclick="ganttNext()">&#9654;</button>
+                </div>
+                <div class="gantt-wrap" id="gantt-wrap"></div>
+            </div>
+
+            <div id="panel-goals" class="tab-panel">
+                <div class="goals-add-row">
+                    <button class="mac-btn" onclick="addGoal()">&#10010; Add Goal</button>
+                    <span style="font-size:11px;color:#888;margin-left:4px">Set key objectives for a time period</span>
+                </div>
+                <div class="goals-panel" id="goals-list"></div>
+            </div>
+
+            <div id="panel-notes" class="tab-panel">
+                <div class="notes-panel">
+                    <textarea class="notes-area" id="notes-area" placeholder="Write notes here..." oninput="onNotesInput()"></textarea>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
     let tasks = [];
+    let notes = '';
+    let goals = [];
     let fileHandle = null;
     let pomoDuration = 25;
     let pomoState = { active: false, paused: false, taskIndex: -1, remaining: 0, interval: null };
+    let ganttDate = new Date();
+    ganttDate.setDate(1);
+    let notesSaveTimer = null;
     const DB_NAME = 'indietoolbox_tasks';
     const STORE_NAME = 'handles';
+    const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const DAY_ABBR = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
     function openDB() {
         return new Promise((resolve, reject) => {
@@ -322,7 +589,7 @@
 
     function showApp() {
         document.getElementById('setup-screen').style.display = 'none';
-        document.getElementById('app-screen').style.display = 'block';
+        document.getElementById('app-screen').style.display = 'flex';
     }
 
     function render() {
@@ -384,7 +651,7 @@
         const input = document.getElementById('add-input');
         const text = input.value.trim();
         if (!text) return;
-        tasks.push({ text, done: false });
+        tasks.push({ text, done: false, days: [] });
         input.value = '';
         input.focus();
         save();
@@ -484,11 +751,184 @@
         alert(`Pomodoro complete!\n"${taskName}"`);
     }
 
+    function switchTab(name) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+        if (name === 'gantt') renderGantt();
+        if (name === 'goals') renderGoals();
+        if (name === 'notes') document.getElementById('notes-area').value = notes;
+    }
+
+    function ganttPrev() {
+        ganttDate.setMonth(ganttDate.getMonth() - 1);
+        renderGantt();
+    }
+    function ganttNext() {
+        ganttDate.setMonth(ganttDate.getMonth() + 1);
+        renderGantt();
+    }
+
+    function renderGantt() {
+        const wrap = document.getElementById('gantt-wrap');
+        const label = document.getElementById('gantt-month-label');
+        const y = ganttDate.getFullYear();
+        const m = ganttDate.getMonth();
+        label.textContent = `${MONTH_NAMES[m]} ${y}`;
+
+        if (tasks.length === 0) {
+            wrap.innerHTML = '<div class="gantt-empty">Add tasks first to use the Gantt chart.</div>';
+            return;
+        }
+
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+        let html = '<table class="gantt-table"><thead><tr><th class="gantt-task-hdr">Task</th>';
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dt = new Date(y, m, d);
+            const dow = dt.getDay();
+            const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            let cls = '';
+            if (dow === 0 || dow === 6) cls += ' weekend-hdr';
+            if (dateStr === todayStr) cls += ' today-hdr';
+            html += `<th class="${cls}" title="${DAY_ABBR[dow]} ${d}">${d}</th>`;
+        }
+        html += '</tr></thead><tbody>';
+
+        tasks.forEach((task, ti) => {
+            const days = task.days || [];
+            html += `<tr><td class="gantt-task-name${task.done ? ' done-task' : ''}" title="${escapeHtml(task.text)}">${escapeHtml(task.text)}</td>`;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dt = new Date(y, m, d);
+                const dow = dt.getDay();
+                const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const isFilled = days.includes(dateStr);
+                const isWeekend = dow === 0 || dow === 6;
+                const isToday = dateStr === todayStr;
+                let cls = 'gantt-day';
+                if (isFilled) cls += ' filled';
+                if (isWeekend) cls += ' weekend';
+                if (isToday) cls += ' today-col';
+                html += `<td class="${cls}" onclick="toggleGanttDay(${ti},'${dateStr}')"></td>`;
+            }
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+    }
+
+    function toggleGanttDay(taskIndex, dateStr) {
+        if (!tasks[taskIndex].days) tasks[taskIndex].days = [];
+        const arr = tasks[taskIndex].days;
+        const idx = arr.indexOf(dateStr);
+        if (idx >= 0) arr.splice(idx, 1);
+        else arr.push(dateStr);
+        save();
+        renderGantt();
+    }
+
+    function onNotesInput() {
+        notes = document.getElementById('notes-area').value;
+        if (notesSaveTimer) clearTimeout(notesSaveTimer);
+        notesSaveTimer = setTimeout(() => save(), 500);
+    }
+
+    function addGoal() {
+        const today = new Date();
+        const y = today.getFullYear(), m = today.getMonth();
+        const from = `${y}-${String(m+1).padStart(2,'0')}-01`;
+        const lastDay = new Date(y, m+1, 0).getDate();
+        const to = `${y}-${String(m+1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+        goals.push({ from, to, text: '' });
+        save();
+        renderGoals();
+    }
+
+    function deleteGoal(i) {
+        goals.splice(i, 1);
+        save();
+        renderGoals();
+    }
+
+    function updateGoal(i, field, value) {
+        goals[i][field] = value;
+        if (notesSaveTimer) clearTimeout(notesSaveTimer);
+        notesSaveTimer = setTimeout(() => save(), 500);
+    }
+
+    function formatGoalRange(from, to) {
+        if (!from || !to) return '';
+        const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const [fy, fm, fd] = from.split('-').map(Number);
+        const [ty, tm, td] = to.split('-').map(Number);
+        if (!fy || !fm || !fd || !ty || !tm || !td) return '';
+        const fMonth = MONTHS_SHORT[fm - 1];
+        const tMonth = MONTHS_SHORT[tm - 1];
+        if (fy === ty && fm === tm) {
+            return `${fd}\u2013${td} ${fMonth}`;
+        }
+        if (fy === ty) {
+            return `${fd} ${fMonth} \u2013 ${td} ${tMonth}`;
+        }
+        return `${fd} ${fMonth} ${fy} \u2013 ${td} ${tMonth} ${ty}`;
+    }
+
+    function autoGrow(el) {
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+    }
+
+    function renderGoals() {
+        const container = document.getElementById('goals-list');
+        if (goals.length === 0) {
+            container.innerHTML = '<div class="empty-state">No goals yet. Add one above.</div>';
+            return;
+        }
+        container.innerHTML = '';
+        goals.forEach((g, i) => {
+            const div = document.createElement('div');
+            div.className = 'goal-item';
+            const rangeLabel = formatGoalRange(g.from, g.to);
+            div.innerHTML = `
+                <div class="goal-header">
+                    <input type="date" value="${g.from}" onchange="updateGoal(${i},'from',this.value);renderGoals()">
+                    <span class="goal-sep">&#8594;</span>
+                    <input type="date" value="${g.to}" onchange="updateGoal(${i},'to',this.value);renderGoals()">
+                    <span class="goal-range-label">${rangeLabel}</span>
+                    <button class="task-btn" onclick="deleteGoal(${i})" title="Delete" style="margin-left:auto">&#10005;</button>
+                </div>
+                <textarea class="goal-desc" placeholder="Key objectives for this period..." oninput="updateGoal(${i},'text',this.value);autoGrow(this)">${escapeHtml(g.text)}</textarea>
+            `;
+            container.appendChild(div);
+        });
+        container.querySelectorAll('.goal-desc').forEach(autoGrow);
+    }
+
+    function loadData(raw) {
+        let data;
+        try { data = JSON.parse(raw); } catch(e) { data = { tasks: [], notes: '', goals: [] }; }
+        if (Array.isArray(data)) {
+            tasks = data.map(t => ({ text: t.text, done: !!t.done, days: t.days || [] }));
+            notes = '';
+            goals = [];
+        } else {
+            tasks = (data.tasks || []).map(t => ({ text: t.text, done: !!t.done, days: t.days || [] }));
+            notes = data.notes || '';
+            goals = (data.goals || []).map(g => ({ from: g.from || '', to: g.to || '', text: g.text || '' }));
+        }
+    }
+
+    function getSaveData() {
+        return { tasks, notes, goals };
+    }
+
     async function save() {
         if (!fileHandle) return;
         try {
             const writable = await fileHandle.createWritable();
-            await writable.write(JSON.stringify(tasks, null, 2));
+            await writable.write(JSON.stringify(getSaveData(), null, 2));
             await writable.close();
             updateStatus(fileHandle.name, true);
         } catch (e) {
@@ -511,7 +951,7 @@
             await storeHandle(handle);
             const file = await handle.getFile();
             const text = await file.text();
-            tasks = JSON.parse(text);
+            loadData(text);
             updateStatus(handle.name, true);
             showApp();
             render();
@@ -533,8 +973,10 @@
             fileHandle = handle;
             await storeHandle(handle);
             tasks = [];
+            notes = '';
+            goals = [];
             const writable = await handle.createWritable();
-            await writable.write(JSON.stringify(tasks, null, 2));
+            await writable.write(JSON.stringify(getSaveData(), null, 2));
             await writable.close();
             updateStatus(handle.name, true);
             showApp();
@@ -550,34 +992,47 @@
         el.title = name;
     }
 
+    let pendingHandle = null;
+
+    async function reconnectFile() {
+        if (!pendingHandle) return;
+        try {
+            const result = await pendingHandle.requestPermission({ mode: 'readwrite' });
+            if (result !== 'granted') return;
+            fileHandle = pendingHandle;
+            const file = await fileHandle.getFile();
+            const text = await file.text();
+            loadData(text);
+            updateStatus(fileHandle.name, true);
+            pendingHandle = null;
+            showApp();
+            render();
+        } catch (e) {
+            pendingHandle = null;
+            document.getElementById('quick-connect').style.display = 'none';
+        }
+    }
+
     async function tryAutoConnect() {
         try {
             const handle = await getStoredHandle();
             if (!handle) return;
             const perm = await handle.queryPermission({ mode: 'readwrite' });
             if (perm === 'granted') {
-                fileHandle = handle;
-                const file = await handle.getFile();
-                const text = await file.text();
-                tasks = JSON.parse(text);
-                updateStatus(handle.name, true);
-                showApp();
-                render();
-                return;
-            }
-            if (perm === 'prompt') {
-                const granted = await handle.requestPermission({ mode: 'readwrite' });
-                if (granted === 'granted') {
+                try {
                     fileHandle = handle;
                     const file = await handle.getFile();
                     const text = await file.text();
-                    tasks = JSON.parse(text);
+                    loadData(text);
                     updateStatus(handle.name, true);
                     showApp();
                     render();
-                    return;
-                }
+                } catch (e) {}
+                return;
             }
+            pendingHandle = handle;
+            document.getElementById('quick-connect-name').textContent = handle.name;
+            document.getElementById('quick-connect').style.display = 'block';
         } catch (e) {
             console.warn('Auto-connect failed:', e);
         }
