@@ -53,32 +53,41 @@
             background: #fff;
             border-bottom: 2px solid #000;
             display: flex;
-            align-items: stretch;
+            align-items: center;
             padding: 0 4px;
-            gap: 0;
+            position: relative;
             user-select: none;
+            flex-shrink: 0;
         }
 
-        .title-bar-stripes {
-            flex: 1 1 0;
-            min-width: 0;
-            margin: 3px 0;
+        .title-bar-lines {
+            position: absolute;
+            left: 4px;
+            right: 4px;
+            top: 3px;
+            bottom: 3px;
+            z-index: 0;
             background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
         }
 
         .title-bar-text {
-            flex: 0 1 auto;
-            max-width: min(52%, 320px);
-            position: relative;
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            transform: translateX(-50%);
             z-index: 1;
+            display: flex;
+            align-items: center;
             background: #fff;
             padding: 0 10px;
-            align-self: center;
             font-size: 13px;
             font-weight: bold;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            pointer-events: none;
+            max-width: min(calc(100% - 48px), 320px);
         }
 
         .window-content { padding: 16px; }
@@ -846,9 +855,8 @@
 <div class="desktop">
     <div class="mac-window">
         <div class="title-bar">
-            <div class="title-bar-stripes" aria-hidden="true"></div>
+            <div class="title-bar-lines" aria-hidden="true"></div>
             <div class="title-bar-text" id="title-bar-section">Link a file</div>
-            <div class="title-bar-stripes" aria-hidden="true"></div>
         </div>
 
         <div id="setup-screen" class="setup-screen">

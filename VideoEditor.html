@@ -76,22 +76,44 @@
 
         .title-bar-lines {
             position: absolute;
-            left: 28px;
-            right: 28px;
+            left: 4px;
+            right: 4px;
             top: 3px;
             bottom: 3px;
+            z-index: 0;
             background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
         }
 
         .title-bar-text {
-            position: relative;
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            transform: translateX(-50%);
             z-index: 1;
+            display: flex;
+            align-items: center;
             background: #fff;
-            padding: 0 8px;
-            margin: 0 auto;
+            padding: 0 10px;
             font-size: 13px;
             font-weight: bold;
             white-space: nowrap;
+            pointer-events: none;
+            max-width: calc(100% - 48px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .title-bar-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            align-self: stretch;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 2;
+            background: #fff;
+            padding: 0 12px 0 0;
         }
 
         .close-box {
@@ -100,7 +122,7 @@
             border: 2px solid #000;
             background: #fff;
             position: relative;
-            z-index: 1;
+            z-index: 2;
             flex-shrink: 0;
             cursor: pointer;
         }
@@ -436,7 +458,9 @@
 
     <div class="mac-window" id="editor-window">
         <div class="title-bar">
-            <div class="close-box" onclick="closeEditor()"></div>
+            <div class="title-bar-controls">
+                <div class="close-box" onclick="closeEditor()"></div>
+            </div>
             <div class="title-bar-lines"></div>
             <div class="title-bar-text" id="editor-title">Video Editor</div>
         </div>

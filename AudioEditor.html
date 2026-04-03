@@ -56,27 +56,44 @@
 
         .title-bar-lines {
             position: absolute;
-            left: 28px;
-            right: 28px;
+            left: 4px;
+            right: 4px;
             top: 3px;
             bottom: 3px;
-            background:
-                repeating-linear-gradient(
-                    to bottom,
-                    #000 0px, #000 1px,
-                    #fff 1px, #fff 3px
-                );
+            z-index: 0;
+            background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
         }
 
         .title-bar-text {
-            position: relative;
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            transform: translateX(-50%);
             z-index: 1;
+            display: flex;
+            align-items: center;
             background: #fff;
-            padding: 0 8px;
-            margin: 0 auto;
+            padding: 0 10px;
             font-size: 13px;
             font-weight: bold;
             white-space: nowrap;
+            pointer-events: none;
+            max-width: calc(100% - 48px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .title-bar-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            align-self: stretch;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 2;
+            background: #fff;
+            padding: 0 12px 0 0;
         }
 
         .close-box {
@@ -85,7 +102,7 @@
             border: 2px solid #000;
             background: #fff;
             position: relative;
-            z-index: 1;
+            z-index: 2;
             flex-shrink: 0;
             cursor: pointer;
         }
@@ -150,10 +167,6 @@
             padding: 0 4px;
             position: relative;
         }
-        .track-title-bar .title-bar-lines {
-            left: 28px;
-            right: 8px;
-        }
         .track-title-text {
             position: relative;
             z-index: 1;
@@ -165,15 +178,18 @@
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 70%;
+            flex: 1 1 auto;
+            min-width: 0;
         }
         .track-duration {
             position: relative;
-            z-index: 1;
+            z-index: 2;
             background: #fff;
-            padding: 0 4px;
+            padding: 0 0 0 12px;
             margin-left: auto;
             font-size: 11px;
             white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .track-body {
@@ -493,7 +509,7 @@
 
         <div class="mac-window">
             <div class="title-bar">
-                <div class="title-bar-lines" style="left:8px"></div>
+                <div class="title-bar-lines"></div>
                 <div class="title-bar-text">Upload</div>
             </div>
             <div class="window-content">
@@ -510,7 +526,7 @@
 
         <div class="mac-window timeline-window" id="mix-timeline">
             <div class="title-bar">
-                <div class="title-bar-lines" style="left:8px"></div>
+                <div class="title-bar-lines"></div>
                 <div class="title-bar-text">Mix Timeline</div>
             </div>
             <div class="window-content">
@@ -526,7 +542,7 @@
 
         <div class="mac-window">
             <div class="title-bar">
-                <div class="title-bar-lines" style="left:8px"></div>
+                <div class="title-bar-lines"></div>
                 <div class="title-bar-text">Controls</div>
             </div>
             <div class="tl-controls">
@@ -865,7 +881,9 @@
                 div.className = 'track-card';
                 div.innerHTML = `
                     <div class="track-title-bar">
-                        <div class="close-box" onclick="deleteTrack('${track.id}')"></div>
+                        <div class="title-bar-controls">
+                            <div class="close-box" onclick="deleteTrack('${track.id}')"></div>
+                        </div>
                         <div class="title-bar-lines"></div>
                         <div class="track-title-text">${track.filename}</div>
                         <div class="track-duration">${(track.trimEnd - track.trimStart).toFixed(1)}s</div>

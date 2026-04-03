@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IndieOS</title>
+    <title>Indie Toolbox</title>
     <link rel="stylesheet" href="dither-ui.css">
     <style>
         @font-face {
@@ -187,25 +187,48 @@
         }
         .app-title-bar:active { cursor: grabbing; }
 
+        /* Полоски title bar: те же inset’ы, что во встроенных приложениях (.title-bar-lines) */
         .app-title-bar-lines {
             position: absolute;
-            left: 48px;
-            right: 28px;
+            left: 4px;
+            right: 4px;
             top: 3px;
             bottom: 3px;
+            z-index: 0;
             background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
         }
 
-        .app-title-text {
+        /* Белая подложка под кнопками: перекрывает полоски по высоте и с запасом справа */
+        .app-title-bar-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            align-self: stretch;
+            flex-shrink: 0;
             position: relative;
-            z-index: 1;
+            z-index: 2;
             background: #fff;
-            padding: 0 8px;
-            margin: 0 auto;
+            padding: 0 12px 0 0;
+        }
+
+        .app-title-text {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            transform: translateX(-50%);
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            background: #fff;
+            padding: 0 10px;
             font-size: 13px;
             font-weight: bold;
             white-space: nowrap;
             pointer-events: none;
+            max-width: calc(100% - 100px);
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .app-close-box {
@@ -244,7 +267,6 @@
             z-index: 2;
             flex-shrink: 0;
             cursor: pointer;
-            margin-left: 4px;
         }
         .app-maximize-box::after {
             content: '';
@@ -429,8 +451,10 @@
 
             win.innerHTML = `
                 <div class="app-title-bar">
-                    <div class="app-close-box" data-app="${appId}"></div>
-                    ${maximizeBtn}
+                    <div class="app-title-bar-controls">
+                        <div class="app-close-box" data-app="${appId}"></div>
+                        ${maximizeBtn}
+                    </div>
                     <div class="app-title-bar-lines"></div>
                     <div class="app-title-text">${cfg.title}</div>
                 </div>
