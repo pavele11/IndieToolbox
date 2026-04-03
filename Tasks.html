@@ -399,10 +399,22 @@
         }
         .pomo-bar input[type="number"]:focus { border-color: #000; }
 
-        .pomo-global-timer {
+        .pomo-bar-tail {
             margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .pomo-global-timer {
             font-weight: bold;
             font-size: 14px;
+        }
+        .pomo-bar-tail .panel-hint {
+            margin-left: 0;
+            text-align: right;
+            max-width: 220px;
         }
 
         .tab-bar {
@@ -895,7 +907,10 @@
                 <div class="pomo-bar">
                     <label>Pomodoro:</label>
                     <input type="number" id="pomo-duration" min="1" max="120" value="25" onchange="pomoDuration=parseInt(this.value)||25"> min
-                    <span class="pomo-global-timer" id="pomo-global-timer"></span>
+                    <div class="pomo-bar-tail">
+                        <span class="pomo-global-timer" id="pomo-global-timer"></span>
+                        <span class="panel-hint">Don't forget to rest — breaks are part of the work.</span>
+                    </div>
                 </div>
 
                 <div class="add-row">
@@ -950,7 +965,6 @@
             <div id="panel-notes" class="tab-panel">
                 <div class="journal-add-row">
                     <button class="mac-btn" onclick="addNoteItem()">&#10010; New note</button>
-                    <span class="panel-hint">Quick scraps and references — same cards as Journal, without dates</span>
                 </div>
                 <div class="notes-body">
                     <div class="journal-panel" id="notes-list"></div>
