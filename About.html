@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Indie Toolbox</title>
+    <style>
+        @font-face {
+            font-family: 'Chicago';
+            src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            background: #fff;
+            color: #000;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            padding: 20px 28px 14px;
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: none;
+            user-select: none;
+        }
+
+        ::selection { background: #000; color: #fff; }
+
+        .header {
+            text-align: center;
+            margin-bottom: 14px;
+            flex-shrink: 0;
+        }
+
+        .app-name {
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .version {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .divider {
+            width: 100%;
+            height: 2px;
+            background: repeating-linear-gradient(to right, #000 0px, #000 2px, transparent 2px, transparent 4px);
+            margin-bottom: 14px;
+            flex-shrink: 0;
+        }
+
+        .description {
+            font-size: 12px;
+            line-height: 1.6;
+            text-align: left;
+            color: #222;
+            flex-shrink: 0;
+        }
+
+        .footer {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-top: 24px;
+        }
+
+        .twitter-link {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            text-decoration: none;
+            color: #000;
+        }
+        .twitter-link:hover .x-logo { opacity: 0.6; }
+
+        .x-logo {
+            width: 28px;
+            height: 28px;
+        }
+
+        .twitter-name {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .dont-show {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: #666;
+            cursor: pointer;
+        }
+        .dont-show input {
+            accent-color: #000;
+            width: 13px;
+            height: 13px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="app-name">Indie Toolbox</div>
+        <div class="version">Version b0.1</div>
+    </div>
+    <div class="divider"></div>
+    <div class="description">
+        Indie Toolbox is a collection of everyday tools to help indie developers — and beyond — tackle their small daily tasks. No more hunting for software, installing apps, or relying on online services just to crop an image or mix some audio. I've gathered here, and will keep gathering, the tools I find missing in my own workflow. Best of luck with your products. May the Force and patience be with you, and return to you as the good fortune you deserve.
+    </div>
+    <div class="footer">
+        <a class="twitter-link" href="https://x.com/Pavel_Efremov_" target="_blank">
+            <svg class="x-logo" viewBox="0 0 24 24" fill="#000"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            <span class="twitter-name">Pavel Efremov</span>
+        </a>
+        <label class="dont-show">
+            <input type="checkbox" id="dont-show-check" onchange="toggleDontShow(this.checked)">
+            Don't show on start
+        </label>
+    </div>
+    <script>
+        const STORAGE_KEY = 'indietoolbox_hide_about';
+
+        if (localStorage.getItem(STORAGE_KEY) === '1') {
+            document.getElementById('dont-show-check').checked = true;
+        }
+
+        function toggleDontShow(checked) {
+            if (checked) {
+                localStorage.setItem(STORAGE_KEY, '1');
+            } else {
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        }
+    </script>
+</body>
+</html>

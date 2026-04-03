@@ -283,7 +283,7 @@
 <body>
 
     <div class="menu-bar">
-        <img class="logo" src="logo.png" alt="IndieOS">
+        <img class="logo" src="logo.png" alt="IndieOS" onclick="openApp('about')" style="cursor:pointer">
         <div class="separator"></div>
         <div class="taskbar-items" id="taskbar-items"></div>
         <span class="clock" id="menu-clock"></span>
@@ -327,7 +327,8 @@
 
         const appConfig = {
             audio: { title: 'Audio Mixer', src: 'AudioEditor.html', w: 1050, h: 650 },
-            image: { title: 'Image Converter', src: 'ImageConverter.html', w: 950, h: 700 }
+            image: { title: 'Image Converter', src: 'ImageConverter.html', w: 950, h: 700 },
+            about: { title: 'About', src: 'About.html', w: 440, h: 380, noResize: true, noMaximize: true, centered: true }
         };
 
         function openApp(appId) {
@@ -342,33 +343,46 @@
             win.dataset.appId = appId;
 
             const desktopRect = desktop.getBoundingClientRect();
-            const x = Math.max(20, (desktopRect.width - cfg.w) / 2 + (Object.keys(windows).length * 30));
-            const y = Math.max(10, (desktopRect.height - cfg.h) / 2 + (Object.keys(windows).length * 30));
+            let x, y;
+            if (cfg.centered) {
+                x = Math.max(0, (desktopRect.width - cfg.w) / 2);
+                y = Math.max(0, (desktopRect.height - cfg.h) / 2);
+            } else {
+                x = Math.max(20, (desktopRect.width - cfg.w) / 2 + (Object.keys(windows).length * 30));
+                y = Math.max(10, (desktopRect.height - cfg.h) / 2 + (Object.keys(windows).length * 30));
+            }
 
             win.style.left = x + 'px';
             win.style.top = y + 'px';
             win.style.width = cfg.w + 'px';
             win.style.height = cfg.h + 'px';
             win.style.zIndex = ++topZ;
+            if (cfg.noResize) {
+                win.style.minWidth = cfg.w + 'px';
+                win.style.minHeight = cfg.h + 'px';
+            }
+
+            const maximizeBtn = cfg.noMaximize ? '' : `<div class="app-maximize-box" data-app="${appId}"></div>`;
+            const resizeHandle = cfg.noResize ? '' : `<div class="app-resize-handle" data-app="${appId}"></div>`;
 
             win.innerHTML = `
                 <div class="app-title-bar">
                     <div class="app-close-box" data-app="${appId}"></div>
-                    <div class="app-maximize-box" data-app="${appId}"></div>
+                    ${maximizeBtn}
                     <div class="app-title-bar-lines"></div>
                     <div class="app-title-text">${cfg.title}</div>
                 </div>
                 <div class="app-body">
                     <iframe src="${cfg.src}"></iframe>
                 </div>
-                <div class="app-resize-handle" data-app="${appId}"></div>
+                ${resizeHandle}
             `;
 
             desktop.appendChild(win);
             windows[appId] = win;
 
             setupWindowDrag(win, appId);
-            setupWindowResize(win, appId);
+            if (!cfg.noResize) setupWindowResize(win, appId);
             bringToFront(appId);
 
             win.querySelector('.app-close-box').addEventListener('click', (e) => {
@@ -376,14 +390,17 @@
                 closeApp(appId);
             });
 
-            win.querySelector('.app-maximize-box').addEventListener('click', (e) => {
-                e.stopPropagation();
-                toggleMaximize(appId);
-            });
+            const maxBox = win.querySelector('.app-maximize-box');
+            if (maxBox) {
+                maxBox.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleMaximize(appId);
+                });
+            }
 
             win.querySelector('.app-title-bar').addEventListener('dblclick', (e) => {
                 if (e.target.classList.contains('app-close-box') || e.target.classList.contains('app-maximize-box')) return;
-                toggleMaximize(appId);
+                if (!cfg.noMaximize) toggleMaximize(appId);
             });
 
             win.addEventListener('mousedown', () => bringToFront(appId));
@@ -542,6 +559,10 @@
         }
         updateClock();
         setInterval(updateClock, 30000);
+
+        if (localStorage.getItem('indietoolbox_hide_about') !== '1') {
+            openApp('about');
+        }
     </script>
 </body>
 </html>
