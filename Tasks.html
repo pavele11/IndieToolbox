@@ -52,27 +52,32 @@
             background: #fff;
             border-bottom: 2px solid #000;
             display: flex;
-            align-items: center;
+            align-items: stretch;
             padding: 0 4px;
-            position: relative;
+            gap: 0;
             user-select: none;
         }
 
-        .title-bar-lines {
-            position: absolute;
-            left: 8px; right: 8px; top: 3px; bottom: 3px;
+        .title-bar-stripes {
+            flex: 1 1 0;
+            min-width: 0;
+            margin: 3px 0;
             background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
         }
 
         .title-bar-text {
+            flex: 0 1 auto;
+            max-width: min(52%, 320px);
             position: relative;
             z-index: 1;
             background: #fff;
-            padding: 0 8px;
-            margin: 0 auto;
+            padding: 0 10px;
+            align-self: center;
             font-size: 13px;
             font-weight: bold;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .window-content { padding: 16px; }
@@ -333,6 +338,7 @@
             border-right: 1px solid #aaa;
             cursor: pointer;
             color: #555;
+            user-select: none;
         }
         .tab:hover { background: #eee; }
         .tab.active {
@@ -341,6 +347,21 @@
             border-bottom: 2px solid #fff;
             margin-bottom: -2px;
         }
+        .tab-rename-input {
+            font-family: inherit;
+            font-size: inherit;
+            font-weight: bold;
+            width: 100%;
+            min-width: 3em;
+            max-width: 160px;
+            border: 2px inset #888;
+            padding: 1px 4px;
+            background: #fff;
+            color: #000;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .tab-rename-input:focus { border-color: #000; }
 
         #app-screen {
             flex: 1;
@@ -616,8 +637,9 @@
 <div class="desktop">
     <div class="mac-window">
         <div class="title-bar">
-            <div class="title-bar-lines"></div>
-            <div class="title-bar-text">Journey Book</div>
+            <div class="title-bar-stripes" aria-hidden="true"></div>
+            <div class="title-bar-text" id="title-bar-section">Link a file</div>
+            <div class="title-bar-stripes" aria-hidden="true"></div>
         </div>
 
         <div id="setup-screen" class="setup-screen">
@@ -735,6 +757,17 @@
     let notes = '';
     let goals = [];
     let journal = [];
+    const DEFAULT_SECTION_LABELS = {
+        tasks: 'Tasks',
+        gantt: 'Gantt',
+        goals: 'Goals',
+        journal: 'Journal',
+        notes: 'Notes'
+    };
+    function cloneSectionLabels() {
+        return { ...DEFAULT_SECTION_LABELS };
+    }
+    let sectionLabels = cloneSectionLabels();
     let fileHandle = null;
     let pomoDuration = 25;
     let pomoState = { active: false, paused: false, taskIndex: -1, remaining: 0, interval: null };
@@ -777,6 +810,64 @@
     function showApp() {
         document.getElementById('setup-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'flex';
+        applyTabLabels();
+        updateTitleBar();
+    }
+
+    function applyTabLabels() {
+        document.querySelectorAll('.tab[data-tab]').forEach(btn => {
+            if (btn.querySelector('.tab-rename-input')) return;
+            const id = btn.dataset.tab;
+            btn.textContent = sectionLabels[id] || DEFAULT_SECTION_LABELS[id];
+        });
+    }
+
+    function updateTitleBar() {
+        const el = document.getElementById('title-bar-section');
+        if (!el) return;
+        const app = document.getElementById('app-screen');
+        if (!app || window.getComputedStyle(app).display === 'none') {
+            el.textContent = 'Link a file';
+            return;
+        }
+        const active = document.querySelector('.tab.active');
+        const id = active && active.dataset.tab ? active.dataset.tab : 'tasks';
+        el.textContent = sectionLabels[id] || DEFAULT_SECTION_LABELS[id];
+    }
+
+    function startTabRename(btn) {
+        const id = btn.dataset.tab;
+        if (!id || btn.querySelector('.tab-rename-input')) return;
+        const before = sectionLabels[id] || DEFAULT_SECTION_LABELS[id];
+        btn.textContent = '';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'tab-rename-input';
+        input.value = before;
+        input.maxLength = 40;
+        btn.appendChild(input);
+        input.focus();
+        input.select();
+
+        let finished = false;
+        const finish = (commit) => {
+            if (finished) return;
+            finished = true;
+            if (commit) {
+                const v = input.value.trim();
+                sectionLabels[id] = (v || DEFAULT_SECTION_LABELS[id]).slice(0, 40);
+                save();
+            }
+            if (input.parentNode) input.remove();
+            btn.textContent = sectionLabels[id] || DEFAULT_SECTION_LABELS[id];
+            updateTitleBar();
+        };
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+            else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+        });
+        input.addEventListener('blur', () => finish(true));
     }
 
     function isoTodayLocal() {
@@ -1109,6 +1200,7 @@
         if (name === 'goals') renderGoals();
         if (name === 'journal') renderJournal();
         if (name === 'notes') document.getElementById('notes-area').value = notes;
+        updateTitleBar();
     }
 
     function ganttPrev() {
@@ -1381,6 +1473,7 @@
             notes = '';
             goals = [];
             journal = [];
+            sectionLabels = cloneSectionLabels();
         } else {
             tasks = (data.tasks || []).map(t => ({ text: t.text, done: !!t.done, days: t.days || [] }));
             notes = data.notes || '';
@@ -1397,12 +1490,23 @@
                 if (isNaN(tb)) return -1;
                 return tb - ta;
             });
+            sectionLabels = cloneSectionLabels();
+            const sl = data.sectionLabels;
+            if (sl && typeof sl === 'object') {
+                for (const k of Object.keys(DEFAULT_SECTION_LABELS)) {
+                    const v = sl[k];
+                    if (typeof v === 'string') {
+                        const t = v.trim();
+                        sectionLabels[k] = t ? t.slice(0, 40) : DEFAULT_SECTION_LABELS[k];
+                    }
+                }
+            }
         }
         journalEditingIndex = null;
     }
 
     function getSaveData() {
-        return { tasks, notes, goals, journal };
+        return { tasks, notes, goals, journal, sectionLabels };
     }
 
     async function save() {
@@ -1458,6 +1562,7 @@
             goals = [];
             journal = [];
             journalEditingIndex = null;
+            sectionLabels = cloneSectionLabels();
             const writable = await handle.createWritable();
             await writable.write(JSON.stringify(getSaveData(), null, 2));
             await writable.close();
@@ -1520,6 +1625,13 @@
             console.warn('Auto-connect failed:', e);
         }
     }
+
+    document.querySelector('.tab-bar').addEventListener('dblclick', (e) => {
+        const btn = e.target.closest('.tab');
+        if (!btn || e.target.classList.contains('tab-rename-input')) return;
+        e.preventDefault();
+        startTabRename(btn);
+    });
 
     tryAutoConnect();
 </script>
