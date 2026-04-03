@@ -1,0 +1,7 @@
+/* Shared Mac-style tight gray dither — used for hovers instead of flat #ddd */
+:root {
+    --dither-dot: radial-gradient(circle, rgba(0, 0, 0, 0.1) 0.42px, transparent 0.48px);
+    --dither-dot-hover: radial-gradient(circle, rgba(0, 0, 0, 0.13) 0.42px, transparent 0.48px);
+    --dither-dot-strong: radial-gradient(circle, rgba(0, 0, 0, 0.14) 0.42px, transparent 0.48px);
+    --dither-step: 2px;
+}

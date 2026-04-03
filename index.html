@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IndieOS</title>
+    <link rel="stylesheet" href="dither-ui.css">
     <style>
         @font-face {
             font-family: 'Chicago';
@@ -80,7 +81,9 @@
             border: 1px solid transparent;
         }
         .menu-bar .taskbar-item:hover {
-            background: #ddd;
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
         }
         .menu-bar .taskbar-item.active {
             background: #000;

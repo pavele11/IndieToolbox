@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio Mixer</title>
+    <link rel="stylesheet" href="dither-ui.css">
     <style>
         @font-face {
             font-family: 'Chicago';
@@ -117,10 +118,14 @@
             background: #fff;
         }
         .upload-area:hover {
-            background: #eee;
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
         }
         .upload-area.dragover {
-            background: #ddd;
+            background-color: #fff;
+            background-image: var(--dither-dot-strong);
+            background-size: var(--dither-step) var(--dither-step);
             border-style: solid;
         }
         .upload-icon {
@@ -245,7 +250,9 @@
             white-space: nowrap;
         }
         .mac-btn:hover {
-            background: #ddd;
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
         }
         .mac-btn:active {
             background: #000;

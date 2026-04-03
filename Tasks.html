@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Journey Book</title>
+    <link rel="stylesheet" href="dither-ui.css">
     <style>
         @font-face {
             font-family: 'Chicago';
@@ -20,13 +21,13 @@
         body {
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
             font-size: 13px;
-            background: #c0c0c0;
             color: #000;
             cursor: default;
             -webkit-font-smoothing: none;
             -moz-osx-font-smoothing: none;
             display: flex;
             flex-direction: column;
+            background: #c0c0c0;
         }
 
         .desktop {
@@ -93,7 +94,11 @@
             font-weight: bold;
             white-space: nowrap;
         }
-        .mac-btn:hover { background: #ddd; }
+        .mac-btn:hover {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
         .mac-btn:active { background: #000; color: #fff; }
 
         .setup-screen {
@@ -108,7 +113,8 @@
         .setup-text {
             font-size: 12px;
             line-height: 1.6;
-            color: #444;
+            color: #000;
+            opacity: 0.72;
             text-align: left;
             margin-bottom: 20px;
         }
@@ -123,13 +129,15 @@
             align-items: center;
             gap: 8px;
             padding: 10px 16px;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid #000;
             flex-wrap: wrap;
+            background: #fff;
         }
 
         .file-status {
             font-size: 11px;
-            color: #666;
+            color: #000;
+            opacity: 0.5;
             margin-left: auto;
             white-space: nowrap;
             overflow: hidden;
@@ -137,10 +145,19 @@
             max-width: 300px;
         }
 
+        .panel-hint {
+            font-size: 11px;
+            margin-left: 4px;
+            color: #000;
+            opacity: 0.48;
+        }
+
         .add-row {
             display: flex;
             gap: 8px;
             padding: 12px 16px;
+            border-bottom: 1px solid #000;
+            background: #fff;
         }
 
         .add-input {
@@ -153,7 +170,7 @@
             outline: none;
         }
         .add-input:focus { border-color: #000; }
-        .add-input::placeholder { color: #999; }
+        .add-input::placeholder { color: rgba(0,0,0,0.38); }
 
         .task-list { list-style: none; min-height: 60px; flex: 1; overflow-y: auto; }
 
@@ -162,10 +179,14 @@
             align-items: center;
             gap: 8px;
             padding: 8px 16px;
-            border-bottom: 1px solid #eee;
-            transition: background 0.1s;
+            border-bottom: 1px solid #000;
+            background: #fff;
         }
-        .task-item:hover { background: #f5f5f5; }
+        .task-item:hover {
+            background: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
 
         .task-item input[type="checkbox"] {
             accent-color: #000;
@@ -179,7 +200,8 @@
 
         .task-item.done .task-text {
             text-decoration: line-through;
-            color: #999;
+            color: #000;
+            opacity: 0.45;
         }
 
         .task-rename-input {
@@ -204,17 +226,20 @@
         .task-btn {
             font-size: 13px;
             cursor: pointer;
-            color: #999;
+            color: #000;
+            opacity: 0.4;
             background: none;
             border: none;
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
             padding: 0 3px;
             line-height: 1;
         }
-        .task-btn:hover { color: #000; }
+        .task-btn:hover { opacity: 1; }
 
         .task-item.pomo-active {
-            background: #f0f0f0;
+            background: #fff;
+            background-image: var(--dither-dot-strong);
+            background-size: var(--dither-step) var(--dither-step);
             border-left: 3px solid #000;
             padding-left: 13px;
         }
@@ -230,22 +255,26 @@
         .empty-state {
             text-align: center;
             padding: 40px 20px;
-            color: #999;
+            color: #000;
+            opacity: 0.48;
             font-size: 13px;
         }
 
         .task-count {
             font-size: 11px;
-            color: #666;
+            color: #000;
+            opacity: 0.5;
             padding: 8px 16px;
-            border-top: 1px solid #ccc;
+            border-top: 1px solid #000;
             flex-shrink: 0;
+            background: #fff;
         }
 
         .tasks-panel-scroll {
             flex: 1;
             min-height: 0;
             overflow-y: auto;
+            background: #fff;
         }
 
         .task-month-header {
@@ -253,19 +282,20 @@
             font-weight: bold;
             padding: 6px 16px 4px;
             margin-top: 4px;
-            border-bottom: 1px solid #000;
+            border-bottom: 2px solid #000;
             cursor: pointer;
             user-select: none;
             display: flex;
             align-items: center;
             gap: 6px;
-            background: #f4f4f4;
+            background: #fff;
         }
         .task-month-header:first-child { margin-top: 0; }
-        .task-month-header:hover { background: #eaeaea; }
+        .task-month-header:hover { text-decoration: underline; }
         .task-month-header--done {
-            background: #ececec;
+            background: #fff;
             font-size: 11px;
+            opacity: 0.9;
         }
         .task-month-chevron {
             display: inline-block;
@@ -274,12 +304,13 @@
         }
         .task-month-list {
             margin: 0;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid #000;
         }
 
         .task-done-block {
-            border-top: 2px solid #ccc;
+            border-top: 1px solid #000;
             margin-top: 4px;
+            background: #fff;
         }
         .task-done-toggle {
             width: 100%;
@@ -287,22 +318,23 @@
             font-size: 12px;
             padding: 8px 16px;
             border: none;
-            border-bottom: 1px solid #ccc;
-            background: #e8e8e8;
+            border-bottom: 1px solid #000;
+            background: #fff;
             cursor: pointer;
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
             font-weight: bold;
         }
-        .task-done-toggle:hover { background: #ddd; }
-        #task-done-inner .task-month-header { background: #f0f0f0; }
+        .task-done-toggle:hover { text-decoration: underline; }
+        #task-done-inner .task-month-header { background: #fff; }
 
         .pomo-bar {
             display: flex;
             align-items: center;
             gap: 8px;
             padding: 8px 16px;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid #000;
             font-size: 12px;
+            background: #fff;
         }
         .pomo-bar label { font-weight: bold; }
         .pomo-bar input[type="number"] {
@@ -326,27 +358,31 @@
         .tab-bar {
             display: flex;
             border-bottom: 2px solid #000;
-            background: #ddd;
+            background: #fff;
         }
         .tab {
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
             font-size: 13px;
             font-weight: bold;
             padding: 5px 18px;
-            background: #ddd;
+            background: #fff;
             border: none;
-            border-right: 1px solid #aaa;
+            border-right: 1px solid #000;
             cursor: pointer;
-            color: #555;
+            color: #000;
+            opacity: 0.55;
             user-select: none;
         }
-        .tab:hover { background: #eee; }
+        .tab:hover { opacity: 1; text-decoration: underline; }
         .tab.active {
             background: #fff;
             color: #000;
+            opacity: 1;
             border-bottom: 2px solid #fff;
             margin-bottom: -2px;
+            text-decoration: none;
         }
+        .tab.active:hover { text-decoration: none; }
         .tab-rename-input {
             font-family: inherit;
             font-size: inherit;
@@ -373,18 +409,20 @@
         .tab-panel { display: none; min-height: 0; }
         .tab-panel.active { display: flex; flex-direction: column; flex: 1; }
 
-        /* Month strip: compact System 7–style bar */
+        /* Month strip: white + dot dither, black rules (no gray slab) */
         .period-nav {
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 6px 12px;
             flex-shrink: 0;
-            background: #d8d8d8;
+            background-color: #fff;
+            background-image: var(--dither-dot);
+            background-size: var(--dither-step) var(--dither-step);
         }
         .period-nav--bottom {
-            border-top: 1px solid #fff;
-            border-bottom: 1px solid #888;
+            border-top: 1px solid #000;
+            border-bottom: none;
         }
         .period-nav-cluster {
             display: flex;
@@ -412,7 +450,9 @@
             justify-content: center;
         }
         .period-nav-btn:hover {
-            background: #ddd;
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
         }
         .period-nav-btn:active {
             background: #000;
@@ -448,21 +488,25 @@
             flex: 1;
             min-height: 0;
             overflow: auto;
+            background: #fff;
         }
         .gantt-done-block {
-            border-top: 2px solid #ccc;
+            border-top: 1px solid #000;
             margin-top: 2px;
             flex-shrink: 0;
+            background: #fff;
         }
         .gantt-done-inner-wrap {
             overflow: auto;
             max-height: 200px;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid #000;
+            background: #fff;
         }
         .gantt-empty-row {
             text-align: center;
             padding: 10px 8px !important;
-            color: #777;
+            color: #000;
+            opacity: 0.45;
             font-size: 12px;
             font-style: italic;
         }
@@ -481,14 +525,14 @@
             font-size: 11px;
         }
         .gantt-table th, .gantt-table td {
-            border: 1px solid #ccc;
+            border: 1px solid #000;
             padding: 0;
             text-align: center;
             height: 24px;
             min-width: 24px;
         }
         .gantt-table th {
-            background: #eee;
+            background: #fff;
             font-weight: bold;
             position: sticky;
             top: 0;
@@ -502,7 +546,7 @@
             position: sticky;
             left: 0;
             z-index: 2;
-            background: #eee;
+            background: #fff;
         }
         .gantt-table td.gantt-task-name {
             text-align: left;
@@ -525,27 +569,43 @@
         }
         .gantt-table td.gantt-day {
             cursor: pointer;
-            transition: background 0.05s;
+            background: #fff;
         }
-        .gantt-table td.gantt-day:hover { background: #e0e0e0; }
-        .gantt-table td.gantt-day.filled { background: #000; }
-        .gantt-table td.gantt-day.filled:hover { background: #333; }
-        .gantt-table td.gantt-day.weekend { background: #f4f4f4; }
-        .gantt-table td.gantt-day.weekend.filled { background: #000; }
-        .gantt-table th.weekend-hdr { background: #e0e0e0; }
-        .gantt-table th.today-hdr { background: #ccc; }
-        .gantt-table td.gantt-day.today-col { border-color: #999; }
+        .gantt-table td.gantt-day:hover {
+            outline: 1px dotted #000;
+            outline-offset: -1px;
+        }
+        .gantt-table td.gantt-day.filled { background: #000; outline: none; }
+        .gantt-table td.gantt-day.filled:hover { background: #000; opacity: 0.85; outline: none; }
+        .gantt-table td.gantt-day.weekend {
+            background-color: #fff;
+            background-image: var(--dither-dot);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .gantt-table td.gantt-day.weekend.filled { background: #000; background-image: none; }
+        .gantt-table th.weekend-hdr {
+            background-color: #fff;
+            background-image: var(--dither-dot);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .gantt-table th.today-hdr {
+            background: #fff;
+            box-shadow: inset 0 -2px 0 #000;
+        }
+        .gantt-table td.gantt-day.today-col { border-color: #000; }
 
         .gantt-empty {
             text-align: center;
             padding: 30px 20px;
-            color: #999;
+            color: #000;
+            opacity: 0.45;
             font-size: 13px;
         }
 
         .note-item {
             padding: 12px 16px;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid #000;
+            background: #fff;
         }
         .note-toolbar {
             display: flex;
@@ -559,41 +619,49 @@
             display: flex;
             flex-direction: column;
             min-height: 0;
+            background: #fff;
         }
         .notes-archive-block {
             flex-shrink: 0;
-            border-top: 2px solid #ccc;
+            border-top: 1px solid #000;
             margin-top: 4px;
+            background: #fff;
         }
         .notes-archive-inner {
             max-height: 240px;
             overflow-y: auto;
             padding: 0;
-            border-bottom: 1px solid #ccc;
-            background: #fafafa;
+            border-bottom: 1px solid #000;
+            background: #fff;
+            background-image: var(--dither-dot);
+            background-size: var(--dither-step) var(--dither-step);
         }
         .note-archived-item {
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid #000;
+            background: transparent;
         }
         .note-archived-item .journal-bubble {
-            background: #f6f6f6;
+            background: #fff;
         }
 
         .goals-panel {
             flex: 1;
             overflow-y: auto;
             padding: 0;
+            background: #fff;
         }
         .goals-add-row {
             display: flex;
             align-items: center;
             gap: 8px;
             padding: 10px 16px;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid #000;
+            background: #fff;
         }
         .goal-item {
             padding: 12px 16px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid #000;
+            background: #fff;
         }
         .goal-header {
             display: flex;
@@ -611,7 +679,7 @@
             outline: none;
         }
         .goal-header input[type="date"]:focus { border-color: #000; }
-        .goal-sep { font-size: 12px; color: #666; }
+        .goal-sep { font-size: 12px; color: #000; opacity: 0.45; }
         .goal-range-label {
             font-size: 15px;
             font-weight: bold;
@@ -638,17 +706,20 @@
             flex: 1;
             overflow-y: auto;
             padding: 0;
+            background: #fff;
         }
         .journal-add-row {
             display: flex;
             align-items: center;
             gap: 8px;
             padding: 10px 16px;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid #000;
+            background: #fff;
         }
         .journal-item {
             padding: 12px 16px;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid #000;
+            background: #fff;
         }
         .journal-header {
             display: flex;
@@ -660,7 +731,7 @@
         .journal-date {
             font-size: 12px;
             font-weight: bold;
-            color: #333;
+            color: #000;
         }
         .journal-actions {
             display: flex;
@@ -678,7 +749,11 @@
             background: #fff;
             cursor: pointer;
         }
-        .journal-mac-btn:hover { background: #ddd; }
+        .journal-mac-btn:hover {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
         .journal-mac-btn:active { background: #000; color: #fff; }
         .journal-bubble {
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
@@ -688,13 +763,13 @@
             word-break: break-word;
             background: #fff;
             border: 2px solid #000;
-            box-shadow: 2px 2px 0 #000;
             padding: 8px 10px;
             min-height: 2.6em;
             max-width: 100%;
         }
         .journal-bubble-empty {
-            color: #888;
+            color: #000;
+            opacity: 0.42;
             font-style: italic;
         }
         .journal-text, .note-text {
@@ -732,7 +807,7 @@
                 <div class="setup-buttons">
                     <button class="mac-btn" onclick="reconnectFile()" style="border-width:3px">&#9741; Connect <span id="quick-connect-name"></span></button>
                 </div>
-                <div style="border-bottom:1px solid #ccc;margin:20px 20px 0"></div>
+                <div style="border-bottom:1px solid #000;margin:20px 20px 0;opacity:0.35"></div>
             </div>
             <div class="setup-title">Link a file</div>
             <div class="setup-text">
@@ -795,7 +870,7 @@
             <div id="panel-goals" class="tab-panel">
                 <div class="goals-add-row">
                     <button class="mac-btn" onclick="addGoal()">&#10010; Add Goal</button>
-                    <span style="font-size:11px;color:#888;margin-left:4px">Set key objectives for a time period</span>
+                    <span class="panel-hint">Set key objectives for a time period</span>
                 </div>
                 <div class="goals-panel" id="goals-list"></div>
             </div>
@@ -803,7 +878,7 @@
             <div id="panel-journal" class="tab-panel">
                 <div class="journal-add-row">
                     <button class="mac-btn" onclick="addJournalEntry()">&#10010; New entry</button>
-                    <span style="font-size:11px;color:#888;margin-left:4px">Your journey is yours alone — unique, unrepeatable. Write it down here.</span>
+                    <span class="panel-hint">Your journey is yours alone — unique, unrepeatable. Write it down here.</span>
                 </div>
                 <div class="journal-panel" id="journal-list"></div>
                 <div class="period-nav period-nav--bottom" role="navigation" aria-label="Journal by month">
@@ -818,7 +893,7 @@
             <div id="panel-notes" class="tab-panel">
                 <div class="journal-add-row">
                     <button class="mac-btn" onclick="addNoteItem()">&#10010; New note</button>
-                    <span style="font-size:11px;color:#888;margin-left:4px">Quick scraps and references — same cards as Journal, without dates</span>
+                    <span class="panel-hint">Quick scraps and references — same cards as Journal, without dates</span>
                 </div>
                 <div class="notes-body">
                     <div class="journal-panel" id="notes-list"></div>
