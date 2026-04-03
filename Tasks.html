@@ -373,36 +373,107 @@
         .tab-panel { display: none; min-height: 0; }
         .tab-panel.active { display: flex; flex-direction: column; flex: 1; }
 
-        .gantt-nav {
+        /* Month strip: compact System 7–style bar */
+        .period-nav {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 6px 12px;
+            flex-shrink: 0;
+            background: #d8d8d8;
+        }
+        .period-nav--bottom {
+            border-top: 1px solid #fff;
+            border-bottom: 1px solid #888;
+        }
+        .period-nav-cluster {
+            display: flex;
+            align-items: stretch;
+            border: 2px solid #000;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .period-nav-btn {
+            width: 28px;
+            flex-shrink: 0;
+            margin: 0;
+            padding: 0;
+            border: none;
+            border-right: 2px solid #000;
+            background: #fff;
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            font-weight: bold;
+            line-height: 1;
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
-            padding: 10px 16px;
+        }
+        .period-nav-btn:hover {
+            background: #ddd;
+        }
+        .period-nav-btn:active {
+            background: #000;
+            color: #fff;
+        }
+        .period-nav-btn--next {
+            border-right: none;
+        }
+        .period-nav-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 148px;
+            padding: 5px 14px;
+            background: #fff;
+            font-weight: bold;
+            font-size: 13px;
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            letter-spacing: 0.02em;
+            border-right: 2px solid #000;
+        }
+        .period-nav-label--gantt {
+            min-width: 138px;
+        }
+
+        .gantt-wrap-inner {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .gantt-main-table-wrap {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+        }
+        .gantt-done-block {
+            border-top: 2px solid #ccc;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+        .gantt-done-inner-wrap {
+            overflow: auto;
+            max-height: 200px;
             border-bottom: 1px solid #ccc;
         }
-        .gantt-nav button {
-            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
-            font-size: 14px;
-            background: #fff;
-            border: 2px solid #000;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 26px;
-            height: 22px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
+        .gantt-empty-row {
+            text-align: center;
+            padding: 10px 8px !important;
+            color: #777;
+            font-size: 12px;
+            font-style: italic;
         }
-        .gantt-nav button:hover { background: #ddd; }
-        .gantt-nav button:active { background: #000; color: #fff; }
-        .gantt-nav span { font-weight: bold; min-width: 130px; text-align: center; }
 
         .gantt-wrap {
-            overflow: auto;
+            overflow: hidden;
             padding: 0;
             flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
         }
         .gantt-table {
             border-collapse: collapse;
@@ -711,12 +782,14 @@
             </div>
 
             <div id="panel-gantt" class="tab-panel">
-                <div class="gantt-nav">
-                    <button onclick="ganttPrev()">&#9664;</button>
-                    <span id="gantt-month-label"></span>
-                    <button onclick="ganttNext()">&#9654;</button>
-                </div>
                 <div class="gantt-wrap" id="gantt-wrap"></div>
+                <div class="period-nav period-nav--bottom" role="navigation" aria-label="Gantt month">
+                    <div class="period-nav-cluster">
+                        <button type="button" class="period-nav-btn" onclick="ganttPrev()" title="Previous month">&#9664;</button>
+                        <span class="period-nav-label period-nav-label--gantt" id="gantt-month-label"></span>
+                        <button type="button" class="period-nav-btn period-nav-btn--next" onclick="ganttNext()" title="Next month">&#9654;</button>
+                    </div>
+                </div>
             </div>
 
             <div id="panel-goals" class="tab-panel">
@@ -733,6 +806,13 @@
                     <span style="font-size:11px;color:#888;margin-left:4px">Your journey is yours alone — unique, unrepeatable. Write it down here.</span>
                 </div>
                 <div class="journal-panel" id="journal-list"></div>
+                <div class="period-nav period-nav--bottom" role="navigation" aria-label="Journal by month">
+                    <div class="period-nav-cluster">
+                        <button type="button" class="period-nav-btn" onclick="journalMonthPrev()" title="Previous month">&#9664;</button>
+                        <span class="period-nav-label" id="journal-month-label"></span>
+                        <button type="button" class="period-nav-btn period-nav-btn--next" onclick="journalMonthNext()" title="Next month">&#9654;</button>
+                    </div>
+                </div>
             </div>
 
             <div id="panel-notes" class="tab-panel">
@@ -760,14 +840,15 @@
     function readTaskUIState() {
         try {
             const s = localStorage.getItem('indietoolbox_tasks_ui');
-            if (!s) return { doneHidden: false, months: {} };
+            if (!s) return { doneHidden: false, months: {}, ganttDoneHidden: true };
             const o = JSON.parse(s);
             return {
                 doneHidden: !!o.doneHidden,
+                ganttDoneHidden: typeof o.ganttDoneHidden === 'boolean' ? o.ganttDoneHidden : true,
                 months: o.months && typeof o.months === 'object' ? { ...o.months } : {}
             };
         } catch (e) {
-            return { doneHidden: false, months: {} };
+            return { doneHidden: false, months: {}, ganttDoneHidden: true };
         }
     }
     function writeTaskUIState() {
@@ -795,6 +876,8 @@
     let pomoState = { active: false, paused: false, taskIndex: -1, remaining: 0, interval: null };
     let ganttDate = new Date();
     ganttDate.setDate(1);
+    let journalViewDate = new Date();
+    journalViewDate.setDate(1);
     let goalsSaveTimer = null;
     let notesSaveTimer = null;
     let journalSaveTimer = null;
@@ -948,6 +1031,21 @@
         taskUICollapsed.doneHidden = !taskUICollapsed.doneHidden;
         writeTaskUIState();
         render();
+    }
+
+    function toggleGanttDoneSection() {
+        taskUICollapsed.ganttDoneHidden = !taskUICollapsed.ganttDoneHidden;
+        writeTaskUIState();
+        renderGantt();
+    }
+
+    function ganttMonthKey(y, m) {
+        return `${y}-${String(m + 1).padStart(2, '0')}`;
+    }
+
+    function taskHasDayInGanttMonth(task, y, m) {
+        const mk = ganttMonthKey(y, m);
+        return (task.days || []).some(d => typeof d === 'string' && d.length >= 7 && d.slice(0, 7) === mk);
     }
 
     function appendTaskToUl(ul, i) {
@@ -1257,40 +1355,79 @@
         const daysInMonth = new Date(y, m + 1, 0).getDate();
         const today = new Date();
         const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+        const colCount = daysInMonth + 1;
 
-        let html = '<table class="gantt-table"><thead><tr><th class="gantt-task-hdr">Task</th>';
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dt = new Date(y, m, d);
-            const dow = dt.getDay();
-            const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            let cls = '';
-            if (dow === 0 || dow === 6) cls += ' weekend-hdr';
-            if (dateStr === todayStr) cls += ' today-hdr';
-            html += `<th class="${cls}" title="${DAY_ABBR[dow]} ${d}">${d}</th>`;
-        }
-        html += '</tr></thead><tbody>';
-
-        tasks.forEach((task, ti) => {
-            const days = task.days || [];
-            html += `<tr><td class="gantt-task-name${task.done ? ' done-task' : ''}" title="${escapeHtml(task.text)}">${escapeHtml(task.text)}</td>`;
+        function buildThead() {
+            let h = '<thead><tr><th class="gantt-task-hdr">Task</th>';
             for (let d = 1; d <= daysInMonth; d++) {
                 const dt = new Date(y, m, d);
                 const dow = dt.getDay();
                 const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                const isFilled = days.includes(dateStr);
-                const isWeekend = dow === 0 || dow === 6;
-                const isToday = dateStr === todayStr;
-                let cls = 'gantt-day';
-                if (isFilled) cls += ' filled';
-                if (isWeekend) cls += ' weekend';
-                if (isToday) cls += ' today-col';
-                html += `<td class="${cls}" onclick="toggleGanttDay(${ti},'${dateStr}')"></td>`;
+                let cls = '';
+                if (dow === 0 || dow === 6) cls += ' weekend-hdr';
+                if (dateStr === todayStr) cls += ' today-hdr';
+                h += `<th class="${cls}" title="${DAY_ABBR[dow]} ${d}">${d}</th>`;
             }
-            html += '</tr>';
-        });
+            h += '</tr></thead>';
+            return h;
+        }
 
-        html += '</tbody></table>';
-        wrap.innerHTML = html;
+        function buildBodyRows(indices) {
+            let b = '<tbody>';
+            indices.forEach((ti) => {
+                const task = tasks[ti];
+                const days = task.days || [];
+                b += `<tr><td class="gantt-task-name${task.done ? ' done-task' : ''}" title="${escapeHtml(task.text)}">${escapeHtml(task.text)}</td>`;
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dt = new Date(y, m, d);
+                    const dow = dt.getDay();
+                    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                    const isFilled = days.includes(dateStr);
+                    const isWeekend = dow === 0 || dow === 6;
+                    const isToday = dateStr === todayStr;
+                    let cls = 'gantt-day';
+                    if (isFilled) cls += ' filled';
+                    if (isWeekend) cls += ' weekend';
+                    if (isToday) cls += ' today-col';
+                    b += `<td class="${cls}" onclick="toggleGanttDay(${ti},'${dateStr}')"></td>`;
+                }
+                b += '</tr>';
+            });
+            b += '</tbody>';
+            return b;
+        }
+
+        const openIndices = tasks.map((_, ti) => ti).filter((ti) => !tasks[ti].done);
+        const doneThisMonthIndices = tasks.map((_, ti) => ti).filter(
+            (ti) => tasks[ti].done && taskHasDayInGanttMonth(tasks[ti], y, m)
+        );
+
+        let mainTable = `<table class="gantt-table">${buildThead()}`;
+        if (openIndices.length === 0) {
+            mainTable += `<tbody><tr><td class="gantt-empty-row" colspan="${colCount}">No active tasks for this month.</td></tr></tbody>`;
+        } else {
+            mainTable += buildBodyRows(openIndices);
+        }
+        mainTable += '</table>';
+
+        let doneSection = '';
+        if (doneThisMonthIndices.length > 0) {
+            const hidden = !!taskUICollapsed.ganttDoneHidden;
+            const chevron = hidden ? '\u25b8' : '\u25be';
+            doneSection = `
+                <div class="gantt-done-block">
+                    <button type="button" class="task-done-toggle" onclick="toggleGanttDoneSection()">${chevron} Completed this month (${doneThisMonthIndices.length})</button>
+                    <div class="gantt-done-inner-wrap" id="gantt-done-inner" style="display:${hidden ? 'none' : 'block'}">
+                        <table class="gantt-table">${buildThead()}${buildBodyRows(doneThisMonthIndices)}</table>
+                    </div>
+                </div>`;
+        }
+
+        wrap.innerHTML = `
+            <div class="gantt-wrap-inner">
+                <div class="gantt-main-table-wrap">${mainTable}</div>
+                ${doneSection}
+            </div>`;
     }
 
     function toggleGanttDay(taskIndex, dateStr) {
@@ -1408,9 +1545,23 @@
     }
 
     function addJournalEntry() {
-        journal.unshift({ created: new Date().toISOString(), text: '' });
+        const now = new Date();
+        journalViewDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        journal.unshift({ created: now.toISOString(), text: '' });
         if (journalEditingIndex !== null) journalEditingIndex++;
         save();
+        renderJournal();
+    }
+
+    function journalMonthPrev() {
+        journalFinishCurrentEdit();
+        journalViewDate.setMonth(journalViewDate.getMonth() - 1);
+        renderJournal();
+    }
+
+    function journalMonthNext() {
+        journalFinishCurrentEdit();
+        journalViewDate.setMonth(journalViewDate.getMonth() + 1);
         renderJournal();
     }
 
@@ -1453,14 +1604,46 @@
 
     function renderJournal() {
         const container = document.getElementById('journal-list');
+        const label = document.getElementById('journal-month-label');
         if (!container) return;
+
+        if (journalEditingIndex !== null && journal[journalEditingIndex]) {
+            const ed = new Date(journal[journalEditingIndex].created);
+            if (!isNaN(ed.getTime())) {
+                const vy = journalViewDate.getFullYear();
+                const vm = journalViewDate.getMonth();
+                if (ed.getFullYear() !== vy || ed.getMonth() !== vm) {
+                    journalViewDate = new Date(ed.getFullYear(), ed.getMonth(), 1);
+                }
+            }
+        }
+
+        const vy = journalViewDate.getFullYear();
+        const vm = journalViewDate.getMonth();
+        if (label) label.textContent = `${MONTH_NAMES[vm]} ${vy}`;
+
         if (journal.length === 0) {
             journalEditingIndex = null;
             container.innerHTML = '<div class="empty-state">No journal entries yet. Create one above.</div>';
             return;
         }
-        container.innerHTML = '';
+
+        const rows = [];
         journal.forEach((entry, i) => {
+            const d = new Date(entry.created);
+            if (isNaN(d.getTime())) return;
+            if (d.getFullYear() !== vy || d.getMonth() !== vm) return;
+            rows.push({ entry, i });
+        });
+
+        if (rows.length === 0) {
+            journalEditingIndex = null;
+            container.innerHTML = `<div class="empty-state">No entries in ${MONTH_NAMES[vm]} ${vy}.</div>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        rows.forEach(({ entry, i }) => {
             const div = document.createElement('div');
             div.className = 'journal-item';
             const isEdit = journalEditingIndex === i;
