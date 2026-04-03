@@ -472,27 +472,41 @@
             font-size: 13px;
         }
 
-        .notes-panel {
+        .note-item {
             padding: 12px 16px;
+            border-bottom: 1px solid #ccc;
+        }
+        .note-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        .notes-body {
             flex: 1;
             display: flex;
             flex-direction: column;
+            min-height: 0;
         }
-        .notes-area {
-            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
-            font-size: 13px;
-            width: 100%;
-            flex: 1;
-            min-height: 120px;
-            border: 2px inset #888;
-            background: #fff;
-            padding: 8px;
-            outline: none;
-            resize: none;
-            line-height: 1.5;
+        .notes-archive-block {
+            flex-shrink: 0;
+            border-top: 2px solid #ccc;
+            margin-top: 4px;
         }
-        .notes-area:focus { border-color: #000; }
-        .notes-area::placeholder { color: #999; }
+        .notes-archive-inner {
+            max-height: 240px;
+            overflow-y: auto;
+            padding: 0;
+            border-bottom: 1px solid #ccc;
+            background: #fafafa;
+        }
+        .note-archived-item {
+            border-bottom: 1px solid #ddd;
+        }
+        .note-archived-item .journal-bubble {
+            background: #f6f6f6;
+        }
 
         .goals-panel {
             flex: 1;
@@ -612,7 +626,7 @@
             color: #888;
             font-style: italic;
         }
-        .journal-text {
+        .journal-text, .note-text {
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
             font-size: 13px;
             width: 100%;
@@ -626,8 +640,8 @@
             line-height: 1.4;
             box-sizing: border-box;
         }
-        .journal-text:focus { border-color: #000; }
-        .journal-text::placeholder { color: #999; }
+        .journal-text:focus, .note-text:focus { border-color: #000; }
+        .journal-text::placeholder, .note-text::placeholder { color: #999; }
 
         ::selection { background: #000; color: #fff; }
     </style>
@@ -722,8 +736,16 @@
             </div>
 
             <div id="panel-notes" class="tab-panel">
-                <div class="notes-panel">
-                    <textarea class="notes-area" id="notes-area" placeholder="Write notes here..." oninput="onNotesInput()"></textarea>
+                <div class="journal-add-row">
+                    <button class="mac-btn" onclick="addNoteItem()">&#10010; New note</button>
+                    <span style="font-size:11px;color:#888;margin-left:4px">Quick scraps and references — same cards as Journal, without dates</span>
+                </div>
+                <div class="notes-body">
+                    <div class="journal-panel" id="notes-list"></div>
+                    <div class="notes-archive-block" id="notes-archive-block" style="display:none">
+                        <button type="button" class="task-done-toggle" id="notes-archive-toggle" onclick="toggleNotesArchive()">Archived</button>
+                        <div class="notes-archive-inner" id="notes-archive-inner" style="display:none"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -754,7 +776,7 @@
         } catch (e) {}
     }
     let taskUICollapsed = readTaskUIState();
-    let notes = '';
+    let notesItems = [];
     let goals = [];
     let journal = [];
     const DEFAULT_SECTION_LABELS = {
@@ -773,9 +795,16 @@
     let pomoState = { active: false, paused: false, taskIndex: -1, remaining: 0, interval: null };
     let ganttDate = new Date();
     ganttDate.setDate(1);
+    let goalsSaveTimer = null;
     let notesSaveTimer = null;
     let journalSaveTimer = null;
     let journalEditingIndex = null;
+    let notesEditingIndex = null;
+    let notesArchived = [];
+    let notesArchiveExpanded = false;
+    try {
+        notesArchiveExpanded = localStorage.getItem('indietoolbox_notes_archive_expanded') === '1';
+    } catch (e) {}
     const DB_NAME = 'indietoolbox_tasks';
     const STORE_NAME = 'handles';
     const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1193,13 +1222,14 @@
 
     function switchTab(name) {
         journalFinishCurrentEdit();
+        notesFinishCurrentEdit();
         document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
         if (name === 'tasks') render();
         if (name === 'gantt') renderGantt();
         if (name === 'goals') renderGoals();
         if (name === 'journal') renderJournal();
-        if (name === 'notes') document.getElementById('notes-area').value = notes;
+        if (name === 'notes') renderNotes();
         updateTitleBar();
     }
 
@@ -1274,12 +1304,6 @@
         render();
     }
 
-    function onNotesInput() {
-        notes = document.getElementById('notes-area').value;
-        if (notesSaveTimer) clearTimeout(notesSaveTimer);
-        notesSaveTimer = setTimeout(() => save(), 500);
-    }
-
     function addGoal() {
         const today = new Date();
         const y = today.getFullYear(), m = today.getMonth();
@@ -1299,8 +1323,8 @@
 
     function updateGoal(i, field, value) {
         goals[i][field] = value;
-        if (notesSaveTimer) clearTimeout(notesSaveTimer);
-        notesSaveTimer = setTimeout(() => save(), 500);
+        if (goalsSaveTimer) clearTimeout(goalsSaveTimer);
+        goalsSaveTimer = setTimeout(() => save(), 500);
     }
 
     function formatGoalRange(from, to) {
@@ -1465,18 +1489,252 @@
         container.querySelectorAll('.journal-text').forEach(autoGrow);
     }
 
+    function normalizeNotesField(raw) {
+        if (Array.isArray(raw)) {
+            return raw.map(n => {
+                if (typeof n === 'string') return { text: n };
+                if (n && typeof n === 'object') return { text: typeof n.text === 'string' ? n.text : '' };
+                return { text: '' };
+            });
+        }
+        if (typeof raw === 'string') {
+            const t = raw.trim();
+            return t ? [{ text: raw }] : [];
+        }
+        return [];
+    }
+
+    function notesFinishCurrentEdit() {
+        if (notesEditingIndex === null) return;
+        if (notesSaveTimer) clearTimeout(notesSaveTimer);
+        const i = notesEditingIndex;
+        const ta = document.querySelector(`textarea.note-text[data-ni="${i}"]`);
+        if (ta && notesItems[i]) notesItems[i].text = ta.value;
+        if (notesItems[i] && !String(notesItems[i].text || '').trim()) {
+            notesItems.splice(i, 1);
+        }
+        notesEditingIndex = null;
+        save();
+        renderNotes();
+    }
+
+    function notesAreaBlur(i) {
+        setTimeout(() => {
+            if (notesEditingIndex !== i) return;
+            const ae = document.activeElement;
+            if (ae && ae.matches && ae.matches('textarea.note-text[data-ni="' + i + '"]')) return;
+            notesFinishCurrentEdit();
+        }, 0);
+    }
+
+    function addNoteItem() {
+        if (notesEditingIndex !== null) {
+            const ei = notesEditingIndex;
+            const ta = document.querySelector(`textarea.note-text[data-ni="${ei}"]`);
+            if (ta && notesItems[ei]) notesItems[ei].text = ta.value;
+            if (notesSaveTimer) clearTimeout(notesSaveTimer);
+            if (notesItems[ei] && !String(notesItems[ei].text || '').trim()) {
+                notesItems.splice(ei, 1);
+            }
+        }
+        notesItems.unshift({ text: '' });
+        notesEditingIndex = 0;
+        save();
+        renderNotes();
+        requestAnimationFrame(() => {
+            const t = document.querySelector('textarea.note-text[data-ni="0"]');
+            if (t) {
+                t.focus();
+                autoGrow(t);
+            }
+        });
+    }
+
+    function deleteNoteItem(i) {
+        if (notesEditingIndex !== null) {
+            const ei = notesEditingIndex;
+            const ta = document.querySelector(`textarea.note-text[data-ni="${ei}"]`);
+            if (ta && notesItems[ei]) notesItems[ei].text = ta.value;
+            if (ei === i) notesEditingIndex = null;
+            else if (ei > i) notesEditingIndex = ei - 1;
+        }
+        notesItems.splice(i, 1);
+        if (notesSaveTimer) clearTimeout(notesSaveTimer);
+        save();
+        renderNotes();
+    }
+
+    function updateNoteItem(i, value) {
+        if (!notesItems[i]) return;
+        notesItems[i].text = value;
+        if (notesSaveTimer) clearTimeout(notesSaveTimer);
+        notesSaveTimer = setTimeout(() => save(), 500);
+    }
+
+    function editNoteItem(i) {
+        if (!notesItems[i]) return;
+        if (notesEditingIndex !== null && notesEditingIndex !== i) {
+            if (notesSaveTimer) clearTimeout(notesSaveTimer);
+            const prev = notesEditingIndex;
+            const ta = document.querySelector(`textarea.note-text[data-ni="${prev}"]`);
+            if (ta && notesItems[prev]) notesItems[prev].text = ta.value;
+            let next = i;
+            if (notesItems[prev] && !String(notesItems[prev].text || '').trim()) {
+                notesItems.splice(prev, 1);
+                if (prev < next) next--;
+            }
+            save();
+            notesEditingIndex = next;
+            renderNotes();
+            requestAnimationFrame(() => {
+                const t = document.querySelector(`textarea.note-text[data-ni="${next}"]`);
+                if (t) {
+                    t.focus();
+                    const len = t.value.length;
+                    t.setSelectionRange(len, len);
+                    autoGrow(t);
+                }
+            });
+            return;
+        }
+        notesEditingIndex = i;
+        renderNotes();
+        requestAnimationFrame(() => {
+            const t = document.querySelector(`textarea.note-text[data-ni="${i}"]`);
+            if (t) {
+                t.focus();
+                const len = t.value.length;
+                t.setSelectionRange(len, len);
+                autoGrow(t);
+            }
+        });
+    }
+
+    function renderNotes() {
+        const container = document.getElementById('notes-list');
+        if (!container) return;
+        if (notesItems.length === 0) {
+            notesEditingIndex = null;
+            container.innerHTML = '<div class="empty-state">No notes yet. Add one above.</div>';
+            renderNotesArchive();
+            return;
+        }
+        container.innerHTML = '';
+        notesItems.forEach((entry, i) => {
+            const div = document.createElement('div');
+            div.className = 'note-item';
+            const isEdit = notesEditingIndex === i;
+            const trimmed = (entry.text || '').trim();
+            const bubbleInner = trimmed
+                ? escapeHtml(entry.text)
+                : '<span class="journal-bubble-empty">(No text yet — click Edit)</span>';
+            const actionsEdit = isEdit
+                ? `<button type="button" class="journal-mac-btn" onmousedown="event.preventDefault();notesFinishCurrentEdit()">Done</button>`
+                : `<button type="button" class="journal-mac-btn" onclick="editNoteItem(${i})">Edit</button>`;
+            div.innerHTML = `
+                <div class="note-toolbar">
+                    <div class="journal-actions">
+                        ${actionsEdit}
+                        <button type="button" class="journal-mac-btn" onclick="archiveNoteItem(${i})" title="Move to archive">Archive</button>
+                        <button type="button" class="task-btn" onclick="deleteNoteItem(${i})" title="Delete note">&#10005;</button>
+                    </div>
+                </div>
+                ${isEdit
+                    ? `<textarea class="note-text" data-ni="${i}" placeholder="Write note..." oninput="updateNoteItem(${i},this.value);autoGrow(this)" onblur="notesAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
+                    : `<div class="journal-bubble">${bubbleInner}</div>`
+                }
+            `;
+            container.appendChild(div);
+        });
+        container.querySelectorAll('.note-text').forEach(autoGrow);
+        renderNotesArchive();
+    }
+
+    function toggleNotesArchive() {
+        notesArchiveExpanded = !notesArchiveExpanded;
+        try {
+            localStorage.setItem('indietoolbox_notes_archive_expanded', notesArchiveExpanded ? '1' : '0');
+        } catch (e) {}
+        renderNotesArchive();
+    }
+
+    function renderNotesArchive() {
+        const block = document.getElementById('notes-archive-block');
+        const inner = document.getElementById('notes-archive-inner');
+        const toggle = document.getElementById('notes-archive-toggle');
+        if (!block || !inner || !toggle) return;
+        if (notesArchived.length === 0) {
+            block.style.display = 'none';
+            inner.style.display = 'none';
+            inner.innerHTML = '';
+            return;
+        }
+        block.style.display = '';
+        toggle.textContent = (notesArchiveExpanded ? '\u25bc ' : '\u25b6 ') + 'Archived (' + notesArchived.length + ')';
+        if (!notesArchiveExpanded) {
+            inner.style.display = 'none';
+            inner.innerHTML = '';
+            return;
+        }
+        inner.style.display = 'block';
+        inner.innerHTML = '';
+        notesArchived.forEach((entry, ai) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'note-item note-archived-item';
+            const trimmed = (entry.text || '').trim();
+            const bubbleInner = trimmed
+                ? escapeHtml(entry.text)
+                : '<span class="journal-bubble-empty">(empty)</span>';
+            wrap.innerHTML = `
+                <div class="note-toolbar">
+                    <div class="journal-actions">
+                        <button type="button" class="journal-mac-btn" onclick="restoreArchivedNote(${ai})">Restore</button>
+                    </div>
+                </div>
+                <div class="journal-bubble">${bubbleInner}</div>
+            `;
+            inner.appendChild(wrap);
+        });
+    }
+
+    function archiveNoteItem(i) {
+        if (!notesItems[i]) return;
+        if (notesSaveTimer) clearTimeout(notesSaveTimer);
+        if (notesEditingIndex === i) {
+            const ta = document.querySelector(`textarea.note-text[data-ni="${i}"]`);
+            if (ta && notesItems[i]) notesItems[i].text = ta.value;
+            notesEditingIndex = null;
+        } else if (notesEditingIndex !== null && notesEditingIndex > i) {
+            notesEditingIndex--;
+        }
+        const [item] = notesItems.splice(i, 1);
+        if (item) notesArchived.unshift(item);
+        save();
+        renderNotes();
+    }
+
+    function restoreArchivedNote(ai) {
+        if (!notesArchived[ai]) return;
+        const [item] = notesArchived.splice(ai, 1);
+        if (item) notesItems.unshift(item);
+        save();
+        renderNotes();
+    }
+
     function loadData(raw) {
         let data;
-        try { data = JSON.parse(raw); } catch(e) { data = { tasks: [], notes: '', goals: [], journal: [] }; }
+        try { data = JSON.parse(raw); } catch(e) { data = { tasks: [], notes: [], notesArchived: [], goals: [], journal: [] }; }
         if (Array.isArray(data)) {
             tasks = data.map(t => ({ text: t.text, done: !!t.done, days: t.days || [] }));
-            notes = '';
+            notesItems = [];
+            notesArchived = [];
             goals = [];
             journal = [];
             sectionLabels = cloneSectionLabels();
         } else {
             tasks = (data.tasks || []).map(t => ({ text: t.text, done: !!t.done, days: t.days || [] }));
-            notes = data.notes || '';
+            notesItems = normalizeNotesField(data.notes);
+            notesArchived = normalizeNotesField(data.notesArchived);
             goals = (data.goals || []).map(g => ({ from: g.from || '', to: g.to || '', text: g.text || '' }));
             journal = (data.journal || []).map(j => ({
                 created: j.created || '',
@@ -1503,10 +1761,11 @@
             }
         }
         journalEditingIndex = null;
+        notesEditingIndex = null;
     }
 
     function getSaveData() {
-        return { tasks, notes, goals, journal, sectionLabels };
+        return { tasks, notes: notesItems, notesArchived, goals, journal, sectionLabels };
     }
 
     async function save() {
@@ -1558,10 +1817,12 @@
             fileHandle = handle;
             await storeHandle(handle);
             tasks = [];
-            notes = '';
+            notesItems = [];
+            notesArchived = [];
             goals = [];
             journal = [];
             journalEditingIndex = null;
+            notesEditingIndex = null;
             sectionLabels = cloneSectionLabels();
             const writable = await handle.createWritable();
             await writable.write(JSON.stringify(getSaveData(), null, 2));

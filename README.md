@@ -14,7 +14,7 @@ Styled after classic Macintosh System software, with a desktop environment, drag
 
 **Audio Mixer** — Load multiple audio tracks, trim, apply fades, adjust volume, and arrange them on a shared timeline by dragging. Set custom timeline length to add pauses and gaps. Preview the mix and export to WAV.
 
-**Journey Book** — A single local `.json` file that travels with you while you build a game: tasks (with Pomodoro), Gantt, goals, journal, and notes. Reconnects automatically on your next visit.
+**Journey Book** — A single local `.json` file that travels with you while you build a game: tasks (with Pomodoro), Gantt, goals, a journal (dated entries), and note cards (no dates) with optional archive and restore. Reconnects automatically on your next visit.
 
 **Video Editor** — Preview video files, view file info (size, resolution, duration), resize with locked or free aspect ratio, trim from start or end, toggle audio on/off, and export to WebM.
 
