@@ -88,9 +88,22 @@
             flex-shrink: 0;
             cursor: pointer;
         }
-        .close-box:active {
+        .close-box::before,
+        .close-box::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 2px;
             background: #000;
         }
+        .close-box::before { transform: translate(-50%, -50%) rotate(45deg); }
+        .close-box::after { transform: translate(-50%, -50%) rotate(-45deg); }
+        .close-box:hover { background: #000; }
+        .close-box:hover::before,
+        .close-box:hover::after { background: #fff; }
+        .close-box:active { background: #000; }
 
         .window-content {
             padding: 16px;
@@ -320,6 +333,65 @@
                     #fff 1px, #fff 2px
                 );
         }
+
+        .global-timeline-wrap {
+            border: 2px inset #888;
+            background: #fff;
+            margin: 0 16px 4px;
+            position: relative;
+        }
+        .global-timeline-wrap canvas {
+            width: 100%;
+            height: 80px;
+            display: block;
+            cursor: grab;
+        }
+        .global-timeline-empty {
+            text-align: center;
+            padding: 24px 12px;
+            font-size: 12px;
+            color: #999;
+            margin: 0 16px 4px;
+            border: 2px inset #888;
+            background: #fff;
+        }
+        .tl-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px 4px;
+            font-size: 12px;
+            flex-wrap: wrap;
+        }
+        .tl-controls label {
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .tl-controls input[type="checkbox"] {
+            accent-color: #000;
+            width: 14px;
+            height: 14px;
+        }
+        .tl-controls input[type="number"] {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            width: 70px;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 2px 5px;
+            outline: none;
+        }
+        .tl-controls input[type="number"]:focus {
+            border-color: #000;
+        }
+        .tl-controls .tl-info {
+            margin-left: auto;
+            color: #666;
+            font-size: 11px;
+        }
     </style>
 </head>
 <body>
@@ -328,8 +400,7 @@
 
         <div class="mac-window">
             <div class="title-bar">
-                <div class="close-box"></div>
-                <div class="title-bar-lines"></div>
+                <div class="title-bar-lines" style="left:8px"></div>
                 <div class="title-bar-text">Audio Mixer</div>
             </div>
             <div class="window-content">
@@ -346,8 +417,7 @@
 
         <div class="mac-window timeline-window" id="mix-timeline" style="display:none;">
             <div class="title-bar">
-                <div class="close-box"></div>
-                <div class="title-bar-lines"></div>
+                <div class="title-bar-lines" style="left:8px"></div>
                 <div class="title-bar-text">Mix Timeline</div>
             </div>
             <div class="window-content">
@@ -363,10 +433,17 @@
 
         <div class="mac-window">
             <div class="title-bar">
-                <div class="close-box"></div>
-                <div class="title-bar-lines"></div>
+                <div class="title-bar-lines" style="left:8px"></div>
                 <div class="title-bar-text">Controls</div>
             </div>
+            <div class="tl-controls">
+                <label><input type="checkbox" id="custom-tl-check" onchange="toggleCustomTimeline(this.checked)"> Custom Timeline Length</label>
+                <span id="custom-tl-input-wrap" style="display:none">
+                    <input type="number" id="custom-tl-length" min="1" step="1" value="60" onchange="setCustomTimelineLength(parseFloat(this.value))"> sec
+                </span>
+                <span class="tl-info" id="tl-total-info"></span>
+            </div>
+            <div id="global-timeline-area"></div>
             <div class="global-controls">
                 <button onclick="toggleMixPlay()" id="mix-play-btn" class="mac-btn mac-btn-default">&#9654; Play Mix</button>
                 <button onclick="stopMix()" class="mac-btn">&#9632; Stop Mix</button>
@@ -381,6 +458,8 @@
         let tracks = [];
         let activeTrackPlayers = new Map();
         let mixPlayer = { isPlaying: false, startTime: 0, sources: [], raf: null };
+        let customTimelineEnabled = false;
+        let customTimelineLength = 60;
 
         const fileInput = document.getElementById('fileInput');
         const uploadArea = document.getElementById('upload-area');
@@ -428,7 +507,8 @@
                         fadeInDuration: 1.5,
                         fadeOutDuration: 1.5,
                         volume: 1,
-                        muted: false
+                        muted: false,
+                        offset: 0
                     });
                 } catch (err) {
                     console.error(err);
@@ -443,12 +523,229 @@
             e.target.value = '';
         });
 
+        const TRACK_COLORS = ['#4A90D9','#D94A4A','#49B675','#D9A34A','#9B59B6','#1ABC9C','#E67E22','#7F8C8D'];
+
+        function getMixDuration() {
+            if (customTimelineEnabled) return customTimelineLength;
+            let maxDur = 0;
+            tracks.forEach(t => {
+                if (!t.muted && t.trimEnd > t.trimStart) {
+                    maxDur = Math.max(maxDur, (t.offset || 0) + (t.trimEnd - t.trimStart));
+                }
+            });
+            return maxDur || 1;
+        }
+
+        let tlDragState = null;
+        let tlTrackRects = [];
+
+        function renderGlobalTimeline(playPercent) {
+            const area = document.getElementById('global-timeline-area');
+            if (!area) return;
+            const activeTracks = tracks.filter(t => !t.muted && t.trimEnd > t.trimStart);
+            if (activeTracks.length === 0) {
+                area.innerHTML = '<div class="global-timeline-empty">No active tracks</div>';
+                tlTrackRects = [];
+                updateTlInfo(0);
+                return;
+            }
+
+            const totalDur = getMixDuration();
+            updateTlInfo(totalDur);
+
+            if (!area.querySelector('canvas')) {
+                area.innerHTML = '<div class="global-timeline-wrap"><canvas id="global-tl-canvas" height="80"></canvas></div>';
+                setupGlobalTimelineDrag();
+            }
+            const canvas = document.getElementById('global-tl-canvas');
+            if (!canvas) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            const w = Math.round(rect.width * dpr);
+            const h = Math.round(rect.height * dpr);
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
+            }
+
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, w, h);
+
+            const maxRows = activeTracks.length;
+            const rowH = Math.min(Math.floor((h - 18 * dpr) / maxRows), 20 * dpr);
+            const topPad = 16 * dpr;
+            const gap = 2 * dpr;
+
+            ctx.save();
+            ctx.fillStyle = '#ccc';
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.font = `${9 * dpr}px "Chicago", "VT323", monospace`;
+            const tickStep = totalDur <= 10 ? 1 : totalDur <= 30 ? 5 : totalDur <= 120 ? 10 : 30;
+            for (let sec = 0; sec <= totalDur; sec += tickStep) {
+                const x = (sec / totalDur) * w;
+                ctx.fillStyle = '#888';
+                ctx.fillText(formatTime(sec), x + 2 * dpr, 10 * dpr);
+                ctx.fillStyle = '#ddd';
+                ctx.fillRect(Math.round(x), 12 * dpr, 1, h - 12 * dpr);
+            }
+            ctx.restore();
+
+            tlTrackRects = [];
+            activeTracks.forEach((track, i) => {
+                const tIdx = tracks.indexOf(track);
+                const color = TRACK_COLORS[tIdx % TRACK_COLORS.length];
+                const dur = track.trimEnd - track.trimStart;
+                const off = track.offset || 0;
+                const barX = (off / totalDur) * w;
+                const barW = (dur / totalDur) * w;
+                const y = topPad + i * (rowH + gap);
+
+                tlTrackRects.push({ trackId: track.id, x: barX / dpr, y: y / dpr, w: barW / dpr, h: rowH / dpr });
+
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.75;
+                ctx.fillRect(barX, y, barW, rowH);
+                ctx.globalAlpha = 1;
+
+                const fadeInW = (track.fadeInDuration / totalDur) * w;
+                const fadeOutW = (track.fadeOutDuration / totalDur) * w;
+
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.3;
+                ctx.beginPath();
+                ctx.moveTo(barX, y + rowH);
+                ctx.lineTo(barX + fadeInW, y);
+                ctx.lineTo(barX, y);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(barX + barW, y + rowH);
+                ctx.lineTo(barX + barW - fadeOutW, y);
+                ctx.lineTo(barX + barW, y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.globalAlpha = 1;
+
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barX, y, barW, rowH);
+
+                const maxLabelW = barW - 6 * dpr;
+                if (maxLabelW > 10) {
+                    const fontSize = Math.min(10 * dpr, rowH - 2);
+                    ctx.font = `bold ${fontSize}px "Chicago", "VT323", monospace`;
+                    let label = track.filename;
+                    while (ctx.measureText(label).width > maxLabelW && label.length > 3) label = label.slice(0, -2) + '…';
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText(label, barX + 3 * dpr, y + rowH - 3 * dpr);
+                }
+            });
+
+            if (playPercent != null && playPercent >= 0) {
+                const px = playPercent * w;
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2 * dpr;
+                ctx.setLineDash([3 * dpr, 3 * dpr]);
+                ctx.beginPath();
+                ctx.moveTo(px, 0);
+                ctx.lineTo(px, h);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.moveTo(px - 5 * dpr, 0);
+                ctx.lineTo(px + 5 * dpr, 0);
+                ctx.lineTo(px, 8 * dpr);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        function updateTlInfo(dur) {
+            const el = document.getElementById('tl-total-info');
+            if (el) el.textContent = dur > 0 ? 'Total: ' + formatTime(dur) : '';
+        }
+
+        function setupGlobalTimelineDrag() {
+            const area = document.getElementById('global-timeline-area');
+
+            area.addEventListener('mousedown', (e) => {
+                const canvas = document.getElementById('global-tl-canvas');
+                if (!canvas) return;
+                const cr = canvas.getBoundingClientRect();
+                const mx = e.clientX - cr.left;
+                const my = e.clientY - cr.top;
+
+                for (let i = tlTrackRects.length - 1; i >= 0; i--) {
+                    const r = tlTrackRects[i];
+                    if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                        const track = tracks.find(t => t.id === r.trackId);
+                        if (!track) break;
+                        tlDragState = { trackId: r.trackId, startMx: mx, origOffset: track.offset || 0, scale: getMixDuration() };
+                        canvas.style.cursor = 'grabbing';
+                        e.preventDefault();
+                        return;
+                    }
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!tlDragState) return;
+                const canvas = document.getElementById('global-tl-canvas');
+                if (!canvas) return;
+                const cr = canvas.getBoundingClientRect();
+                const dx = e.clientX - cr.left - tlDragState.startMx;
+                const pxPerSec = cr.width / tlDragState.scale;
+                const newOffset = Math.max(0, tlDragState.origOffset + dx / pxPerSec);
+
+                const track = tracks.find(t => t.id === tlDragState.trackId);
+                if (track) {
+                    track.offset = newOffset;
+                    syncTrackInputs(tlDragState.trackId, track);
+                    renderGlobalTimeline();
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (tlDragState) {
+                    tlDragState = null;
+                    const canvas = document.getElementById('global-tl-canvas');
+                    if (canvas) canvas.style.cursor = 'grab';
+                }
+            });
+        }
+
+        function toggleCustomTimeline(enabled) {
+            customTimelineEnabled = enabled;
+            document.getElementById('custom-tl-input-wrap').style.display = enabled ? 'inline' : 'none';
+            if (enabled) {
+                const auto = getMixDuration();
+                customTimelineLength = Math.max(auto, 1);
+                customTimelineEnabled = true;
+                document.getElementById('custom-tl-length').value = Math.ceil(customTimelineLength);
+            }
+            renderGlobalTimeline();
+        }
+
+        function setCustomTimelineLength(val) {
+            if (!val || val < 1) return;
+            customTimelineLength = val;
+            renderGlobalTimeline();
+        }
+
         function renderTracks() {
             const container = document.getElementById('tracks-container');
             container.innerHTML = '';
 
             if (tracks.length === 0) {
                 container.innerHTML = `<div class="empty-state">No tracks loaded. Use Drag & Drop or click above.</div>`;
+                renderGlobalTimeline();
                 return;
             }
 
@@ -471,6 +768,7 @@
                             <div><label>End (s)</label><input type="number" step="0.01" value="${track.trimEnd.toFixed(2)}" onchange="updateTrim('${track.id}','trimEnd',parseFloat(this.value))"></div>
                             <div><label>Fade In (s)</label><input type="number" step="0.1" min="0" value="${track.fadeInDuration}" onchange="updateFade('${track.id}','fadeInDuration',parseFloat(this.value))"></div>
                             <div><label>Fade Out (s)</label><input type="number" step="0.1" min="0" value="${track.fadeOutDuration}" onchange="updateFade('${track.id}','fadeOutDuration',parseFloat(this.value))"></div>
+                            <div><label>Offset (s)</label><input type="number" step="0.1" min="0" value="${(track.offset||0).toFixed(2)}" onchange="updateOffset('${track.id}',parseFloat(this.value))"></div>
                             <div><label>Volume</label><input type="range" min="0" max="200" value="${track.volume*100}" oninput="updateTrack('${track.id}','volume',this.value/100);this.nextElementSibling.textContent=this.value+'%'"><span class="vol-display">${Math.round(track.volume*100)}%</span></div>
                             <div style="display:flex;align-items:end;padding-bottom:2px;"><label style="margin:0;cursor:pointer;"><input type="checkbox" ${track.muted?'checked':''} onchange="updateTrack('${track.id}','muted',this.checked)">Mute in mix</label></div>
                         </div>
@@ -488,6 +786,8 @@
                 drawWaveform(canvas, track);
                 setupDragHandles(track.id, canvas);
             });
+
+            renderGlobalTimeline();
         }
 
         function drawWaveform(canvas, track, playPercent = null) {
@@ -626,10 +926,36 @@
                 else if (draggingType === 'fadeOutStart') track.fadeOutDuration = Math.max(0, Math.min(track.trimEnd - newTime, track.trimEnd - track.trimStart));
 
                 drawWaveform(canvas, track);
+                syncTrackInputs(trackId, track);
             };
 
             window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', () => draggingType = null);
+            window.addEventListener('mouseup', () => {
+                if (draggingType) {
+                    draggingType = null;
+                    renderGlobalTimeline();
+                }
+            });
+        }
+
+        function syncTrackInputs(trackId, track) {
+            const card = document.getElementById(`canvas-${trackId}`)?.closest('.track-card');
+            if (!card) return;
+            const inputs = card.querySelectorAll('.controls-grid input[type="number"]');
+            if (inputs[0]) inputs[0].value = track.trimStart.toFixed(2);
+            if (inputs[1]) inputs[1].value = track.trimEnd.toFixed(2);
+            if (inputs[2]) inputs[2].value = track.fadeInDuration.toFixed(1);
+            if (inputs[3]) inputs[3].value = track.fadeOutDuration.toFixed(1);
+            if (inputs[4]) inputs[4].value = (track.offset || 0).toFixed(2);
+            const durEl = card.querySelector('.track-duration');
+            if (durEl) durEl.textContent = (track.trimEnd - track.trimStart).toFixed(1) + 's';
+        }
+
+        function updateOffset(id, value) {
+            const track = tracks.find(t => t.id === id);
+            if (!track) return;
+            track.offset = Math.max(0, value || 0);
+            renderGlobalTimeline();
         }
 
         function updateTrim(id, prop, value) {
@@ -640,6 +966,8 @@
             track[prop] = value;
             const canvas = document.getElementById(`canvas-${id}`);
             if (canvas) drawWaveform(canvas, track);
+            syncTrackInputs(id, track);
+            renderGlobalTimeline();
         }
 
         function updateFade(id, prop, value) {
@@ -649,6 +977,8 @@
             track[prop] = Math.max(0, Math.min(value, max));
             const canvas = document.getElementById(`canvas-${id}`);
             if (canvas) drawWaveform(canvas, track);
+            syncTrackInputs(id, track);
+            renderGlobalTimeline();
         }
 
         function updateTrack(id, prop, value) {
@@ -785,8 +1115,7 @@
             mixPlayer.isPlaying = true;
             document.getElementById('mix-play-btn').innerHTML = '&#10074;&#10074; Pause';
 
-            let maxDur = 0;
-            tracks.forEach(t => { if (!t.muted) maxDur = Math.max(maxDur, t.trimEnd - t.trimStart); });
+            const maxDur = getMixDuration();
 
             document.getElementById('mix-total').textContent = formatTime(maxDur);
             document.getElementById('mix-timeline').style.display = 'block';
@@ -803,16 +1132,18 @@
                 source.connect(envelope).connect(volumeGain).connect(audioContext.destination);
 
                 const dur = track.trimEnd - track.trimStart;
-                envelope.gain.setValueAtTime(0, startTime);
-                envelope.gain.linearRampToValueAtTime(1, startTime + track.fadeInDuration);
+                const trackStart = startTime + (track.offset || 0);
 
-                const fadeOutTime = startTime + dur - track.fadeOutDuration;
+                envelope.gain.setValueAtTime(0, trackStart);
+                envelope.gain.linearRampToValueAtTime(1, trackStart + track.fadeInDuration);
+
+                const fadeOutTime = trackStart + dur - track.fadeOutDuration;
                 if (track.fadeOutDuration > 0) {
                     envelope.gain.setValueAtTime(1, fadeOutTime);
-                    envelope.gain.linearRampToValueAtTime(0, startTime + dur);
+                    envelope.gain.linearRampToValueAtTime(0, trackStart + dur);
                 }
 
-                source.start(startTime, track.trimStart, dur);
+                source.start(trackStart, track.trimStart, dur);
                 mixPlayer.sources.push(source);
             });
 
@@ -826,14 +1157,16 @@
             if (mixPlayer.raf) cancelAnimationFrame(mixPlayer.raf);
             document.getElementById('mix-play-btn').innerHTML = '&#9654; Play Mix';
             document.getElementById('mix-progress-bar').style.width = '0%';
+            renderGlobalTimeline();
         }
 
         function updateMixProgress(totalDur) {
             if (!mixPlayer.isPlaying) return;
             const elapsed = audioContext.currentTime - mixPlayer.startTime;
-            const percent = Math.min((elapsed / totalDur) * 100, 100);
-            document.getElementById('mix-progress-bar').style.width = percent + '%';
+            const pct = Math.min(elapsed / totalDur, 1);
+            document.getElementById('mix-progress-bar').style.width = (pct * 100) + '%';
             document.getElementById('mix-current').textContent = formatTime(elapsed);
+            renderGlobalTimeline(pct);
 
             if (elapsed < totalDur) mixPlayer.raf = requestAnimationFrame(() => updateMixProgress(totalDur));
             else stopMix();
@@ -849,8 +1182,7 @@
             if (tracks.length === 0) return alert('No tracks loaded');
             initAudioContext();
 
-            let maxDur = 0;
-            tracks.forEach(t => { if (!t.muted) maxDur = Math.max(maxDur, t.trimEnd - t.trimStart); });
+            const maxDur = getMixDuration();
             if (maxDur === 0) return alert('No active tracks');
 
             const offline = new OfflineAudioContext(2, Math.ceil(maxDur * audioContext.sampleRate), audioContext.sampleRate);
@@ -866,16 +1198,18 @@
                 source.connect(envelope).connect(volumeGain).connect(offline.destination);
 
                 const dur = track.trimEnd - track.trimStart;
-                envelope.gain.setValueAtTime(0, 0);
-                envelope.gain.linearRampToValueAtTime(1, track.fadeInDuration);
+                const off = track.offset || 0;
 
-                const fadeOutStart = dur - track.fadeOutDuration;
+                envelope.gain.setValueAtTime(0, off);
+                envelope.gain.linearRampToValueAtTime(1, off + track.fadeInDuration);
+
+                const fadeOutStart = off + dur - track.fadeOutDuration;
                 if (track.fadeOutDuration > 0) {
                     envelope.gain.setValueAtTime(1, fadeOutStart);
-                    envelope.gain.linearRampToValueAtTime(0, dur);
+                    envelope.gain.linearRampToValueAtTime(0, off + dur);
                 }
 
-                source.start(0, track.trimStart, dur);
+                source.start(off, track.trimStart, dur);
             });
 
             const rendered = await offline.startRendering();
