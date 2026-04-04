@@ -407,6 +407,35 @@
         let windows = {};
         let topZ = 10;
 
+        /** Окно не уезжает целиком: в зоне desktop остаётся полоска шапки для перетаскивания */
+        const WIN_BORDER_TOP = 2;
+        const TITLE_BAR_H = 22;
+        const MIN_TITLE_GRAB_W = 80;
+        const MIN_TITLE_VISIBLE_H = 10;
+
+        function clampWindowToDesktop(win, left, top) {
+            const dw = Math.max(0, desktop.clientWidth);
+            const dh = Math.max(0, desktop.clientHeight);
+            const w = Math.max(1, win.offsetWidth);
+            const needX = Math.min(MIN_TITLE_GRAB_W, w, dw || 1);
+            const titleTopInset = WIN_BORDER_TOP;
+            const needY = Math.min(MIN_TITLE_VISIBLE_H, TITLE_BAR_H, dh || 1);
+            const l = Math.max(needX - w, Math.min(left, dw - needX));
+            const t = Math.max(
+                needY - titleTopInset - TITLE_BAR_H,
+                Math.min(top, dh - needY - titleTopInset)
+            );
+            win.style.left = l + 'px';
+            win.style.top = t + 'px';
+        }
+
+        function clampWindowPosition(win) {
+            if (!win || win.classList.contains('maximized')) return;
+            const left = parseInt(win.style.left, 10);
+            const top = parseInt(win.style.top, 10);
+            clampWindowToDesktop(win, Number.isFinite(left) ? left : 0, Number.isFinite(top) ? top : 0);
+        }
+
         const appConfig = {
             audio: { title: 'Audio Mixer', src: 'AudioEditor.html', w: 1050, h: 650 },
             image: { title: 'Image Editor', src: 'ImageConverter.html', w: 950, h: 700 },
@@ -466,6 +495,7 @@
 
             desktop.appendChild(win);
             windows[appId] = win;
+            clampWindowPosition(win);
 
             setupWindowDrag(win, appId);
             if (!cfg.noResize) setupWindowResize(win, appId);
@@ -514,6 +544,7 @@
                     win.style.top = saved.top;
                     win.style.width = saved.width;
                     win.style.height = saved.height;
+                    clampWindowPosition(win);
                 }
             } else {
                 win._savedRect = {
@@ -584,8 +615,7 @@
                 if (!isDragging) return;
                 const dx = e.clientX - startX;
                 const dy = e.clientY - startY;
-                win.style.left = (origX + dx) + 'px';
-                win.style.top = (origY + dy) + 'px';
+                clampWindowToDesktop(win, origX + dx, origY + dy);
             });
 
             window.addEventListener('mouseup', () => {
@@ -625,9 +655,16 @@
                 if (isResizing) {
                     isResizing = false;
                     disableIframes(false);
+                    clampWindowPosition(win);
                 }
             });
         }
+
+        window.addEventListener('resize', () => {
+            for (const id in windows) {
+                clampWindowPosition(windows[id]);
+            }
+        });
 
         function disableIframes(disable) {
             document.querySelectorAll('.app-body iframe').forEach(f => {
