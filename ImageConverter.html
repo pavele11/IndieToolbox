@@ -123,12 +123,12 @@
         .window-content { padding: 16px; }
 
         .upload-area {
-            border: 2px dashed #000;
+            border: none;
             padding: 36px 20px;
             text-align: center;
             cursor: pointer;
             background: #fff;
-            transition: border-color 0.15s;
+            transition: box-shadow 0.15s;
         }
         .upload-area:hover {
             background-color: #fff;
@@ -139,7 +139,7 @@
             background-color: #fff;
             background-image: var(--dither-dot-strong);
             background-size: var(--dither-step) var(--dither-step);
-            border-style: solid;
+            box-shadow: inset 0 0 0 1px #000;
         }
         .upload-icon { font-size: 28px; margin-bottom: 6px; display: block; }
 
@@ -165,6 +165,113 @@
         #preview-canvas {
             display: block;
             image-rendering: auto;
+            position: relative;
+            z-index: 0;
+        }
+
+        .markup-toolbar {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 4;
+            display: none;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px 8px;
+            background: #fff;
+            border: 2px solid #000;
+            box-shadow: 2px 2px 0 #000;
+            max-width: calc(100% - 16px);
+        }
+        .markup-toolbar.is-visible { display: flex; }
+        .markup-tool-btn {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border: 2px solid #000;
+            background: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 1px 1px 0 #000;
+        }
+        .markup-tool-btn:hover {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .markup-tool-btn.active {
+            background: #fff;
+            color: #999;
+            border-color: #999;
+            box-shadow: 1px 1px 0 #bbb;
+        }
+        .markup-tool-btn svg { display: block; }
+        .markup-tool-btn:not(.active) { color: #000; }
+        .markup-toolbar-sep {
+            width: 1px;
+            height: 22px;
+            background: #000;
+            flex-shrink: 0;
+        }
+        .markup-toolbar label {
+            font-size: 11px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+        #markup-color {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border: 2px solid #000;
+            border-radius: 0;
+            cursor: pointer;
+            flex-shrink: 0;
+            box-shadow: 1px 1px 0 #000;
+            background: #fff;
+        }
+        #markup-color::-webkit-color-swatch-wrapper {
+            padding: 2px;
+        }
+        #markup-color::-webkit-color-swatch {
+            border: none;
+            border-radius: 0;
+        }
+        #markup-color::-moz-color-swatch {
+            border: none;
+        }
+        .markup-toolbar input[type="range"] {
+            width: 72px;
+            accent-color: #000;
+        }
+        #markup-text-editor {
+            display: none;
+            position: absolute;
+            z-index: 6;
+            box-sizing: border-box;
+            margin: 0;
+            padding: 4px 5px;
+            border: 2px solid #000;
+            background: rgba(255, 255, 255, 0.96);
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 14px;
+            font-weight: bold;
+            color: #000;
+            resize: none;
+            outline: none;
+            overflow: auto;
+            line-height: 1.2;
+        }
+        #markup-text-editor:focus {
+            box-shadow: 0 0 0 1px #000;
         }
 
         .crop-bar {
@@ -292,9 +399,18 @@
             box-shadow: none;
             transform: translate(2px, 2px);
         }
-        .mac-btn-default {
-            border-width: 3px;
-            box-shadow: var(--mac-push-shadow), 0 0 0 1px #000;
+        /* Markup mode on: same visual weight as Crop while crop is active (disabled mac-btn), not thick default */
+        .mac-btn.markup-mode-on {
+            color: #999;
+            border-color: #999;
+            background: #fff;
+            box-shadow: 1px 1px 0 #bbb;
+            cursor: pointer;
+        }
+        .mac-btn.markup-mode-on:hover:not(:disabled) {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
         }
         .mac-btn:disabled {
             color: #999;
@@ -350,7 +466,29 @@
             </div>
             <div class="window-content">
                 <div class="preview-wrap" id="preview-wrap">
+                    <div class="markup-toolbar" id="markup-toolbar" aria-label="Markup tools">
+                        <button type="button" class="markup-tool-btn active" id="markup-tool-pencil" title="Pencil" aria-label="Pencil">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" d="M18.3687 3.29001L20.7087 5.63C21.0988 6.01999 21.0988 6.64999 20.7087 7.04001L18.8788 8.87L15.1288 5.12L16.9587 3.29001C17.1487 3.10001 17.3987 3 17.6588 3C17.9188 3 18.1688 3.09 18.3687 3.29001ZM2.99875 17.25V21H6.74875L17.8087 9.94L14.0587 6.19L2.99875 17.25ZM5.91876 19H4.99875V18.08L14.0587 9.01999L14.9788 9.94L5.91876 19Z"/>
+                            </svg>
+                        </button>
+                        <button type="button" class="markup-tool-btn" id="markup-tool-text" title="Text box" aria-label="Text">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path fill="currentColor" d="M5 4.5V7.5H10.5V19.5H13.5V7.5H19V4.5H5Z"/>
+                            </svg>
+                        </button>
+                        <button type="button" class="markup-tool-btn" id="markup-tool-eraser" title="Eraser" aria-label="Eraser">
+                            <svg width="18" height="18" viewBox="0 0 24 25" fill="none" aria-hidden="true">
+                                <path fill="currentColor" d="M15 3L2 16L7 21H11.1L22 10.1L15 3ZM9.6 11.2L15 5.8L19.2 10L13.9 15.4L9.6 11.2Z"/>
+                            </svg>
+                        </button>
+                        <span class="markup-toolbar-sep" aria-hidden="true"></span>
+                        <input type="color" id="markup-color" value="#cc0000" title="Color (pencil, text &amp; new boxes)" aria-label="Color">
+                        <label title="Line width">Ln <input type="range" id="markup-line-width" min="1" max="24" value="4"></label>
+                        <label title="Eraser size">Er <input type="range" id="markup-eraser-size" min="4" max="48" value="16"></label>
+                    </div>
                     <canvas id="preview-canvas"></canvas>
+                    <textarea id="markup-text-editor" spellcheck="true" rows="1" aria-label="Text note"></textarea>
                 </div>
 
                 <div id="crop-bar" class="crop-bar" style="display:none;">
@@ -401,7 +539,9 @@
 
                 <div class="action-buttons">
                     <button class="mac-btn" onclick="enterCropMode()" id="btn-crop">&#9986; Crop</button>
+                    <button class="mac-btn" id="btn-markup" onclick="toggleMarkupMode()">&#9998; Markup</button>
                     <button class="mac-btn" onclick="resetImage()">&#8634; Reset</button>
+                    <button class="mac-btn" onclick="copyCompositeToClipboard()">&#9112; Copy to clipboard</button>
                     <button class="mac-btn" onclick="downloadImage()">&#8615; Download</button>
                 </div>
             </div>
@@ -432,6 +572,456 @@
 
         const HANDLE_SIZE = 7;
         const HANDLE_HIT = 12;
+
+        // ================ MARKUP (annotations on image) ================
+
+        let markupActive = false;
+        let markupTool = 'pencil';
+        let markupCanvas = document.createElement('canvas');
+        let markupCtx = markupCanvas.getContext('2d');
+        let textAnnotations = [];
+        let selectedTextId = null;
+
+        let markupLineLast = null;
+        let markupDrawing = false;
+        let markupErasing = false;
+        let textDragStart = null;
+        let textPendingRect = null;
+        let moveTextState = null;
+        let resizeTextState = null;
+
+        const markupToolbar = document.getElementById('markup-toolbar');
+        const btnMarkup = document.getElementById('btn-markup');
+        const markupTextEditor = document.getElementById('markup-text-editor');
+        let textEditAnnId = null;
+
+        const MARKUP_TITLE_PATH = 'M5 4.5V7.5H10.5V19.5H13.5V7.5H19V4.5H5Z';
+        const MARKUP_CURSOR_TEXT = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">'
+            + '<path fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round" d="'
+            + MARKUP_TITLE_PATH + '"/></svg>'
+        );
+
+        let markupLastPointerInImage = null;
+
+        /** diameter in work (image) pixels; shown on preview scaled by displayScale */
+        function buildMarkupBrushCursorUrl(diameterWork) {
+            const dPx = Math.max(1, diameterWork * displayScale);
+            const strokeW = 1;
+            const pad = 3;
+            let r = dPx / 2;
+            let size = Math.ceil(2 * r + strokeW * 2 + pad * 2);
+            size = Math.min(128, Math.max(12, size));
+            const maxR = size / 2 - strokeW - 1.5;
+            r = Math.min(r, maxR);
+            r = Math.max(0.5, r);
+            const cx = size / 2;
+            const cy = size / 2;
+            const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">'
+                + '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="rgba(255,255,255,0.45)" stroke="#000" stroke-width="' + strokeW + '"/></svg>';
+            return {
+                url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
+                hx: Math.floor(cx),
+                hy: Math.floor(cy)
+            };
+        }
+
+        function refreshMarkupBrushCursorFromSliders() {
+            if (!markupActive || cropActive || !workCanvas.width || !markupLastPointerInImage) return;
+            const p = markupLastPointerInImage;
+            if (!isInsidePreviewImage(p.mx, p.my)) return;
+            updateMarkupCursor(p.mx, p.my);
+        }
+
+        function syncTextEditorPosition() {
+            if (!textEditAnnId || !markupTextEditor || markupTextEditor.style.display === 'none') return;
+            const ann = textAnnotations.find(t => t.id === textEditAnnId);
+            if (!ann) return;
+            const left = previewCanvas.offsetLeft + CANVAS_PAD + ann.x * displayScale;
+            const top = previewCanvas.offsetTop + CANVAS_PAD + ann.y * displayScale;
+            markupTextEditor.style.left = left + 'px';
+            markupTextEditor.style.top = top + 'px';
+            markupTextEditor.style.width = Math.max(24, ann.w * displayScale) + 'px';
+            markupTextEditor.style.height = Math.max(28, ann.h * displayScale) + 'px';
+        }
+
+        function finishTextEdit() {
+            if (!textEditAnnId) {
+                markupTextEditor.style.display = 'none';
+                markupTextEditor.value = '';
+                return;
+            }
+            const ann = textAnnotations.find(t => t.id === textEditAnnId);
+            if (ann) {
+                ann.text = markupTextEditor.value;
+                if (!ann.text.trim()) {
+                    textAnnotations = textAnnotations.filter(t => t.id !== ann.id);
+                    if (selectedTextId === ann.id) selectedTextId = null;
+                }
+            }
+            markupTextEditor.style.display = 'none';
+            markupTextEditor.value = '';
+            textEditAnnId = null;
+            drawPreview();
+        }
+
+        function startTextEdit(ann) {
+            if (!ann) return;
+            textEditAnnId = ann.id;
+            selectedTextId = ann.id;
+            document.getElementById('markup-color').value = ann.color || '#cc0000';
+            markupTextEditor.value = ann.text || '';
+            markupTextEditor.style.color = ann.color || '#000';
+            syncTextEditorPosition();
+            markupTextEditor.style.display = 'block';
+            requestAnimationFrame(() => {
+                markupTextEditor.focus();
+                markupTextEditor.select();
+            });
+            drawPreview();
+        }
+
+        function updateMarkupCursor(mx, my) {
+            if (!markupActive || cropActive || !workCanvas.width) return;
+            const inside = isInsidePreviewImage(mx, my);
+            if (inside) markupLastPointerInImage = { mx, my };
+            if (markupTool === 'pencil' && inside) {
+                const lw = parseInt(document.getElementById('markup-line-width').value, 10) || 4;
+                const c = buildMarkupBrushCursorUrl(lw);
+                previewCanvas.style.cursor = `url("${c.url}") ${c.hx} ${c.hy}, crosshair`;
+            } else if (markupTool === 'eraser' && inside) {
+                const es = parseInt(document.getElementById('markup-eraser-size').value, 10) || 16;
+                const c = buildMarkupBrushCursorUrl(es);
+                previewCanvas.style.cursor = `url("${c.url}") ${c.hx} ${c.hy}, crosshair`;
+            } else if (markupTool === 'text' && inside) {
+                if (textDragStart) {
+                    previewCanvas.style.cursor = 'crosshair';
+                } else if (resizeTextState) {
+                    const rc = textResizeCornerCursor(resizeTextState.corner);
+                    previewCanvas.style.cursor = rc || 'default';
+                } else if (selectedTextId) {
+                    const ann = textAnnotations.find(t => t.id === selectedTextId);
+                    if (ann) {
+                        const wpt = previewToWork(mx, my);
+                        const wx = clamp(wpt.x, 0, workCanvas.width);
+                        const wy = clamp(wpt.y, 0, workCanvas.height);
+                        const corner = hitTextCorner(wx, wy, ann);
+                        const rc = corner ? textResizeCornerCursor(corner) : null;
+                        previewCanvas.style.cursor = rc || `url("${MARKUP_CURSOR_TEXT}") 5 5, default`;
+                    } else {
+                        previewCanvas.style.cursor = `url("${MARKUP_CURSOR_TEXT}") 5 5, default`;
+                    }
+                } else {
+                    previewCanvas.style.cursor = `url("${MARKUP_CURSOR_TEXT}") 5 5, default`;
+                }
+            } else {
+                previewCanvas.style.cursor = '';
+            }
+        }
+
+        function syncMarkupCanvasSize() {
+            if (!workCanvas.width) return;
+            if (markupCanvas.width === workCanvas.width && markupCanvas.height === workCanvas.height) return;
+            markupCanvas.width = workCanvas.width;
+            markupCanvas.height = workCanvas.height;
+        }
+
+        function clearMarkupLayer() {
+            textEditAnnId = null;
+            markupTextEditor.style.display = 'none';
+            markupTextEditor.value = '';
+            textAnnotations = [];
+            selectedTextId = null;
+            textPendingRect = null;
+            markupLineLast = null;
+            markupDrawing = false;
+            markupErasing = false;
+            moveTextState = null;
+            resizeTextState = null;
+            if (markupCanvas.width) markupCtx.clearRect(0, 0, markupCanvas.width, markupCanvas.height);
+        }
+
+        function toggleMarkupMode() {
+            markupActive = !markupActive;
+            btnMarkup.classList.toggle('markup-mode-on', markupActive);
+            markupToolbar.classList.toggle('is-visible', markupActive);
+            if (!markupActive) {
+                finishTextEdit();
+                markupDrawing = false;
+                markupErasing = false;
+                textPendingRect = null;
+                moveTextState = null;
+                resizeTextState = null;
+                selectedTextId = null;
+                textEditAnnId = null;
+                markupTextEditor.style.display = 'none';
+                markupTextEditor.value = '';
+                previewCanvas.style.cursor = '';
+                markupLastPointerInImage = null;
+            }
+            drawPreview();
+        }
+
+        function setMarkupTool(tool) {
+            markupTool = tool;
+            document.getElementById('markup-tool-pencil').classList.toggle('active', tool === 'pencil');
+            document.getElementById('markup-tool-text').classList.toggle('active', tool === 'text');
+            document.getElementById('markup-tool-eraser').classList.toggle('active', tool === 'eraser');
+            drawPreview();
+        }
+
+        document.getElementById('markup-tool-pencil').addEventListener('click', () => setMarkupTool('pencil'));
+        document.getElementById('markup-tool-text').addEventListener('click', () => setMarkupTool('text'));
+        document.getElementById('markup-tool-eraser').addEventListener('click', () => setMarkupTool('eraser'));
+
+        document.getElementById('markup-line-width').addEventListener('input', refreshMarkupBrushCursorFromSliders);
+        document.getElementById('markup-eraser-size').addEventListener('input', refreshMarkupBrushCursorFromSliders);
+
+        document.getElementById('markup-color').addEventListener('input', function () {
+            if (selectedTextId) {
+                const a = textAnnotations.find(t => t.id === selectedTextId);
+                if (a) {
+                    a.color = this.value;
+                    if (textEditAnnId === a.id) markupTextEditor.style.color = this.value;
+                    drawPreview();
+                }
+            }
+        });
+
+        markupTextEditor.addEventListener('blur', () => {
+            requestAnimationFrame(() => {
+                if (document.activeElement !== markupTextEditor) finishTextEdit();
+            });
+        });
+        markupTextEditor.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                markupTextEditor.blur();
+            }
+        });
+
+        function previewToWork(mx, my) {
+            const P = CANVAS_PAD;
+            return {
+                x: (mx - P) / displayScale,
+                y: (my - P) / displayScale
+            };
+        }
+
+        function workToPreview(wx, wy) {
+            const P = CANVAS_PAD;
+            return { x: wx * displayScale + P, y: wy * displayScale + P };
+        }
+
+        function hitTextAnnotation(wx, wy) {
+            for (let i = textAnnotations.length - 1; i >= 0; i--) {
+                const a = textAnnotations[i];
+                if (wx >= a.x && wx <= a.x + a.w && wy >= a.y && wy <= a.y + a.h) return a;
+            }
+            return null;
+        }
+
+        const TEXT_HANDLE = 10;
+
+        function hitTextCorner(wx, wy, ann) {
+            const h = TEXT_HANDLE / displayScale;
+            const x1 = ann.x, y1 = ann.y, x2 = ann.x + ann.w, y2 = ann.y + ann.h;
+            if (Math.abs(wx - x1) < h && Math.abs(wy - y1) < h) return 'nw';
+            if (Math.abs(wx - x2) < h && Math.abs(wy - y1) < h) return 'ne';
+            if (Math.abs(wx - x1) < h && Math.abs(wy - y2) < h) return 'sw';
+            if (Math.abs(wx - x2) < h && Math.abs(wy - y2) < h) return 'se';
+            return null;
+        }
+
+        function textResizeCornerCursor(corner) {
+            if (corner === 'nw' || corner === 'se') return 'nwse-resize';
+            if (corner === 'ne' || corner === 'sw') return 'nesw-resize';
+            return null;
+        }
+
+        function cropTextAnnotations(cx, cy, cw, ch) {
+            const next = [];
+            for (const ann of textAnnotations) {
+                const ax2 = ann.x + ann.w;
+                const ay2 = ann.y + ann.h;
+                const ix1 = Math.max(ann.x, cx);
+                const iy1 = Math.max(ann.y, cy);
+                const ix2 = Math.min(ax2, cx + cw);
+                const iy2 = Math.min(ay2, cy + ch);
+                const iw = ix2 - ix1;
+                const ih = iy2 - iy1;
+                if (iw < 8 || ih < 8) continue;
+                next.push({
+                    id: ann.id,
+                    x: ix1 - cx,
+                    y: iy1 - cy,
+                    w: iw,
+                    h: ih,
+                    text: ann.text,
+                    color: ann.color
+                });
+            }
+            textAnnotations = next;
+            if (!textAnnotations.some(t => t.id === selectedTextId)) selectedTextId = null;
+        }
+
+        function isInsidePreviewImage(mx, my) {
+            const P = CANVAS_PAD;
+            const cw = Math.round(workCanvas.width * displayScale);
+            const ch = Math.round(workCanvas.height * displayScale);
+            return mx >= P && my >= P && mx <= P + cw && my <= P + ch;
+        }
+
+        function wrapTextForAnn(ctx, text, maxW) {
+            const t = (text || '').trim() || ' ';
+            const words = t.split(/\s+/);
+            const lines = [];
+            let line = '';
+            for (const word of words) {
+                const test = line ? line + ' ' + word : word;
+                if (ctx.measureText(test).width > maxW && line) {
+                    lines.push(line);
+                    line = word;
+                } else line = test;
+            }
+            if (line) lines.push(line);
+            return lines.length ? lines : [' '];
+        }
+
+        function drawAnnotationText(ctx, ann, scaleX, scaleY, offX, offY) {
+            const x = offX + ann.x * scaleX;
+            const y = offY + ann.y * scaleY;
+            const w = ann.w * scaleX;
+            const h = ann.h * scaleY;
+            const text = ann.text || ' ';
+            let low = 4;
+            let high = Math.max(10, Math.min(h * 0.9, w / 3));
+            let best = low;
+            for (let i = 0; i < 24; i++) {
+                const mid = (low + high) / 2;
+                ctx.font = `bold ${mid}px "Chicago","VT323",Geneva,monospace`;
+                const lines = wrapTextForAnn(ctx, text, w - 4);
+                const lh = mid * 1.25;
+                const th = lines.length * lh;
+                const mw = Math.max(0, ...lines.map(l => ctx.measureText(l).width));
+                if (th <= h - 4 && mw <= w - 4) {
+                    best = mid;
+                    low = mid;
+                } else high = mid;
+            }
+            ctx.font = `bold ${best}px "Chicago","VT323",Geneva,monospace`;
+            ctx.fillStyle = ann.color || '#000';
+            const lines = wrapTextForAnn(ctx, text, w - 4);
+            const lh = best * 1.25;
+            let ty = y + best + 2;
+            for (const line of lines) {
+                if (ty > y + h) break;
+                ctx.fillText(line, x + 2, ty);
+                ty += lh;
+            }
+        }
+
+        function drawMarkupOverlayOnPreview(cw, ch) {
+            const P = CANVAS_PAD;
+            const imgW = workCanvas.width;
+            const imgH = workCanvas.height;
+            previewCtx.save();
+            previewCtx.drawImage(markupCanvas, 0, 0, imgW, imgH, P, P, cw, ch);
+            previewCtx.restore();
+            for (const ann of textAnnotations) {
+                if (ann.id === textEditAnnId) continue;
+                drawAnnotationText(previewCtx, ann, displayScale, displayScale, P, P);
+            }
+            if (textPendingRect) {
+                const r = textPendingRect;
+                const a = workToPreview(r.x, r.y);
+                const b = workToPreview(r.x + r.w, r.y + r.h);
+                previewCtx.save();
+                previewCtx.strokeStyle = '#000';
+                previewCtx.setLineDash([4, 4]);
+                previewCtx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+                previewCtx.restore();
+            }
+            if (selectedTextId && markupActive) {
+                const ann = textAnnotations.find(t => t.id === selectedTextId);
+                if (ann) {
+                    const a = workToPreview(ann.x, ann.y);
+                    const b = workToPreview(ann.x + ann.w, ann.y + ann.h);
+                    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+                    const w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+                    previewCtx.save();
+                    previewCtx.strokeStyle = '#000';
+                    previewCtx.lineWidth = 1.5;
+                    previewCtx.setLineDash([3, 3]);
+                    previewCtx.strokeRect(x + 0.5, y + 0.5, w, h);
+                    previewCtx.setLineDash([]);
+                    const hs = 5;
+                    previewCtx.fillStyle = '#fff';
+                    previewCtx.strokeStyle = '#000';
+                    [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
+                        previewCtx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+                        previewCtx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+                    });
+                    previewCtx.restore();
+                }
+            }
+        }
+
+        function buildOutputCanvas(outW, outH) {
+            if (textEditAnnId) {
+                const live = textAnnotations.find(t => t.id === textEditAnnId);
+                if (live) live.text = markupTextEditor.value;
+            }
+            const fmt = document.getElementById('out-format').value;
+            const c = document.createElement('canvas');
+            c.width = outW;
+            c.height = outH;
+            const ctx = c.getContext('2d');
+            if (fmt === 'image/jpeg') {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, outW, outH);
+            }
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            const sx = outW / workCanvas.width;
+            const sy = outH / workCanvas.height;
+            ctx.drawImage(workCanvas, 0, 0, outW, outH);
+            ctx.drawImage(markupCanvas, 0, 0, outW, outH);
+            for (const ann of textAnnotations) {
+                drawAnnotationText(ctx, ann, sx, sy, 0, 0);
+            }
+            return c;
+        }
+
+        async function copyCompositeToClipboard() {
+            if (!workCanvas.width) return;
+            const w = workCanvas.width;
+            const h = workCanvas.height;
+            const c = buildOutputCanvas(w, h);
+            const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+            if (!blob) {
+                alert('Could not build image for clipboard.');
+                return;
+            }
+            try {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            } catch (e) {
+                console.error(e);
+                alert('Clipboard copy failed. Try Chrome/Edge, or use Download.');
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!markupActive || cropActive) return;
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedTextId && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    textAnnotations = textAnnotations.filter(t => t.id !== selectedTextId);
+                    selectedTextId = null;
+                    drawPreview();
+                }
+            }
+        });
 
         // ================ UPLOAD ================
 
@@ -565,6 +1155,8 @@
 
         function initEditor() {
             cancelCrop();
+            clearMarkupLayer();
+            syncMarkupCanvasSize();
             document.getElementById('editor-window').style.display = 'block';
             document.getElementById('editor-title').textContent = originalFileName;
 
@@ -615,7 +1207,13 @@
             previewCtx.imageSmoothingEnabled = true;
             previewCtx.drawImage(workCanvas, 0, 0, imgW, imgH, CANVAS_PAD, CANVAS_PAD, cw, ch);
 
+            if (markupCanvas.width === imgW && markupCanvas.height === imgH) {
+                drawMarkupOverlayOnPreview(cw, ch);
+            }
+
             if (cropActive) drawCropOverlay(cw, ch);
+
+            syncTextEditorPosition();
         }
 
         function drawCropOverlay(cw, ch) {
@@ -689,6 +1287,14 @@
 
         function enterCropMode() {
             if (cropActive) return;
+            finishTextEdit();
+            markupDrawing = false;
+            markupErasing = false;
+            markupLineLast = null;
+            textDragStart = null;
+            textPendingRect = null;
+            moveTextState = null;
+            resizeTextState = null;
             cropActive = true;
             cropRect = { x: 0, y: 0, w: workCanvas.width, h: workCanvas.height };
             document.getElementById('crop-bar').style.display = 'flex';
@@ -704,10 +1310,23 @@
             const ch = Math.round(Math.min(cropRect.h, workCanvas.height - cy));
             if (cw < 1 || ch < 1) { cancelCrop(); return; }
 
+            const fullW = workCanvas.width;
+            const fullH = workCanvas.height;
+
             const imageData = workCtx.getImageData(cx, cy, cw, ch);
             workCanvas.width = cw;
             workCanvas.height = ch;
             workCtx.putImageData(imageData, 0, 0);
+
+            if (markupCanvas.width === fullW && markupCanvas.height === fullH) {
+                const md = markupCtx.getImageData(cx, cy, cw, ch);
+                markupCanvas.width = cw;
+                markupCanvas.height = ch;
+                markupCtx.putImageData(md, 0, 0);
+            } else {
+                syncMarkupCanvasSize();
+            }
+            cropTextAnnotations(cx, cy, cw, ch);
 
             cancelCrop();
             syncDimensionInputs();
@@ -751,24 +1370,202 @@
             return map[type] || 'default';
         }
 
+        function strokeEraser(wx, wy) {
+            const r = (parseInt(document.getElementById('markup-eraser-size').value, 10) || 16) / 2;
+            markupCtx.save();
+            markupCtx.globalCompositeOperation = 'destination-out';
+            markupCtx.beginPath();
+            markupCtx.arc(wx, wy, Math.max(2, r), 0, Math.PI * 2);
+            markupCtx.fill();
+            markupCtx.restore();
+        }
+
+        function applyTextResize(ann, corner, s, dx, dy) {
+            const MIN = 24;
+            if (corner === 'se') {
+                ann.x = s.x;
+                ann.y = s.y;
+                ann.w = clamp(s.w + dx, MIN, workCanvas.width - s.x);
+                ann.h = clamp(s.h + dy, MIN, workCanvas.height - s.y);
+            } else if (corner === 'ne') {
+                const ny = clamp(s.y + dy, 0, s.y + s.h - MIN);
+                ann.x = s.x;
+                ann.y = ny;
+                ann.w = clamp(s.w + dx, MIN, workCanvas.width - s.x);
+                ann.h = s.y + s.h - ny;
+            } else if (corner === 'sw') {
+                const nx = clamp(s.x + dx, 0, s.x + s.w - MIN);
+                ann.x = nx;
+                ann.y = s.y;
+                ann.w = s.x + s.w - nx;
+                ann.h = clamp(s.h + dy, MIN, workCanvas.height - s.y);
+            } else if (corner === 'nw') {
+                const nx = clamp(s.x + dx, 0, s.x + s.w - MIN);
+                const ny = clamp(s.y + dy, 0, s.y + s.h - MIN);
+                ann.w = s.x + s.w - nx;
+                ann.h = s.y + s.h - ny;
+                ann.x = nx;
+                ann.y = ny;
+            }
+        }
+
         previewCanvas.addEventListener('mousedown', (e) => {
-            if (!cropActive) return;
             const rect = previewCanvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
-            const hit = getCropHit(mx, my);
-            if (hit) {
-                dragType = hit;
-                dragStart = { mx, my, rect: { ...cropRect } };
-                e.preventDefault();
+
+            if (markupActive && !cropActive && textEditAnnId) finishTextEdit();
+
+            if (cropActive) {
+                const hit = getCropHit(mx, my);
+                if (hit) {
+                    dragType = hit;
+                    dragStart = { mx, my, rect: { ...cropRect } };
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            if (markupActive && workCanvas.width && isInsidePreviewImage(mx, my)) {
+                const wpt = previewToWork(mx, my);
+                const wx = clamp(wpt.x, 0, workCanvas.width);
+                const wy = clamp(wpt.y, 0, workCanvas.height);
+
+                if (markupTool === 'pencil') {
+                    markupDrawing = true;
+                    markupLineLast = { x: wx, y: wy };
+                    markupCtx.strokeStyle = document.getElementById('markup-color').value;
+                    markupCtx.lineWidth = parseInt(document.getElementById('markup-line-width').value, 10) || 4;
+                    markupCtx.lineCap = 'round';
+                    markupCtx.lineJoin = 'round';
+                    markupCtx.beginPath();
+                    markupCtx.moveTo(wx, wy);
+                    e.preventDefault();
+                    return;
+                }
+
+                if (markupTool === 'eraser') {
+                    markupErasing = true;
+                    strokeEraser(wx, wy);
+                    drawPreview();
+                    e.preventDefault();
+                    return;
+                }
+
+                if (markupTool === 'text') {
+                    const sel = selectedTextId ? textAnnotations.find(t => t.id === selectedTextId) : null;
+                    if (sel) {
+                        const corner = hitTextCorner(wx, wy, sel);
+                        if (corner) {
+                            resizeTextState = {
+                                id: sel.id,
+                                corner,
+                                startBox: { x: sel.x, y: sel.y, w: sel.w, h: sel.h },
+                                wx0: wx,
+                                wy0: wy
+                            };
+                            e.preventDefault();
+                            return;
+                        }
+                        if (wx >= sel.x && wx <= sel.x + sel.w && wy >= sel.y && wy <= sel.y + sel.h) {
+                            if (e.detail >= 2) {
+                                startTextEdit(sel);
+                                e.preventDefault();
+                                return;
+                            }
+                            moveTextState = { id: sel.id, ox: wx - sel.x, oy: wy - sel.y };
+                            e.preventDefault();
+                            return;
+                        }
+                    }
+                    const hit = hitTextAnnotation(wx, wy);
+                    if (hit) {
+                        if (e.detail >= 2) {
+                            startTextEdit(hit);
+                            e.preventDefault();
+                            return;
+                        }
+                        selectedTextId = hit.id;
+                        document.getElementById('markup-color').value = hit.color || '#cc0000';
+                        drawPreview();
+                        e.preventDefault();
+                        return;
+                    }
+                    selectedTextId = null;
+                    textDragStart = { x: wx, y: wy };
+                    e.preventDefault();
+                }
             }
         });
 
         window.addEventListener('mousemove', (e) => {
-            if (!cropActive) return;
             const rect = previewCanvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
+
+            if (markupActive && !cropActive && workCanvas.width) updateMarkupCursor(mx, my);
+
+            const markupDragging = markupDrawing || markupErasing || textDragStart || moveTextState || resizeTextState;
+            if (markupActive && !cropActive && workCanvas.width && (isInsidePreviewImage(mx, my) || markupDragging)) {
+                const wpt = previewToWork(mx, my);
+                const wx = clamp(wpt.x, 0, workCanvas.width);
+                const wy = clamp(wpt.y, 0, workCanvas.height);
+
+                if (markupDrawing && markupLineLast) {
+                    markupCtx.strokeStyle = document.getElementById('markup-color').value;
+                    markupCtx.lineWidth = parseInt(document.getElementById('markup-line-width').value, 10) || 4;
+                    markupCtx.lineCap = 'round';
+                    markupCtx.lineJoin = 'round';
+                    markupCtx.beginPath();
+                    markupCtx.moveTo(markupLineLast.x, markupLineLast.y);
+                    markupCtx.lineTo(wx, wy);
+                    markupCtx.stroke();
+                    markupLineLast = { x: wx, y: wy };
+                    drawPreview();
+                    return;
+                }
+                if (markupErasing) {
+                    strokeEraser(wx, wy);
+                    drawPreview();
+                    return;
+                }
+                if (textDragStart) {
+                    textPendingRect = {
+                        x: Math.min(textDragStart.x, wx),
+                        y: Math.min(textDragStart.y, wy),
+                        w: Math.abs(wx - textDragStart.x),
+                        h: Math.abs(wy - textDragStart.y)
+                    };
+                    drawPreview();
+                    return;
+                }
+                if (moveTextState) {
+                    const ann = textAnnotations.find(t => t.id === moveTextState.id);
+                    if (ann) {
+                        ann.x = clamp(wx - moveTextState.ox, 0, workCanvas.width - ann.w);
+                        ann.y = clamp(wy - moveTextState.oy, 0, workCanvas.height - ann.h);
+                        drawPreview();
+                    }
+                    return;
+                }
+                if (resizeTextState) {
+                    const ann = textAnnotations.find(t => t.id === resizeTextState.id);
+                    if (ann) {
+                        const s = resizeTextState.startBox;
+                        const dx = wx - resizeTextState.wx0;
+                        const dy = wy - resizeTextState.wy0;
+                        ann.x = s.x;
+                        ann.y = s.y;
+                        ann.w = s.w;
+                        ann.h = s.h;
+                        applyTextResize(ann, resizeTextState.corner, s, dx, dy);
+                        drawPreview();
+                    }
+                    return;
+                }
+            }
+
+            if (!cropActive) return;
 
             if (dragType && dragStart) {
                 const dx = (mx - dragStart.mx) / displayScale;
@@ -811,8 +1608,35 @@
         });
 
         window.addEventListener('mouseup', () => {
+            if (markupDrawing) {
+                markupDrawing = false;
+                markupLineLast = null;
+            }
+            markupErasing = false;
+            if (textDragStart && textPendingRect && textPendingRect.w > 8 && textPendingRect.h > 8) {
+                const ann = {
+                    id: Date.now(),
+                    x: textPendingRect.x,
+                    y: textPendingRect.y,
+                    w: textPendingRect.w,
+                    h: textPendingRect.h,
+                    text: '',
+                    color: document.getElementById('markup-color').value || '#cc0000'
+                };
+                textAnnotations.push(ann);
+                selectedTextId = ann.id;
+                textDragStart = null;
+                textPendingRect = null;
+                requestAnimationFrame(() => startTextEdit(ann));
+            } else {
+                textDragStart = null;
+                textPendingRect = null;
+            }
+            moveTextState = null;
+            resizeTextState = null;
             dragType = null;
             dragStart = null;
+            drawPreview();
         });
 
         function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -866,6 +1690,8 @@
             workCanvas.width = originalImage.width;
             workCanvas.height = originalImage.height;
             workCtx.drawImage(originalImage, 0, 0);
+            clearMarkupLayer();
+            syncMarkupCanvasSize();
             syncDimensionInputs();
             updateInfo();
             drawPreview();
@@ -906,19 +1732,7 @@
             const outH = parseInt(document.getElementById('out-height').value) || workCanvas.height;
             const quality = parseInt(document.getElementById('out-quality').value) / 100;
 
-            const outCanvas = document.createElement('canvas');
-            outCanvas.width = outW;
-            outCanvas.height = outH;
-            const outCtx = outCanvas.getContext('2d');
-
-            if (fmt === 'image/jpeg') {
-                outCtx.fillStyle = '#fff';
-                outCtx.fillRect(0, 0, outW, outH);
-            }
-
-            outCtx.imageSmoothingEnabled = true;
-            outCtx.imageSmoothingQuality = 'high';
-            outCtx.drawImage(workCanvas, 0, 0, outW, outH);
+            const outCanvas = buildOutputCanvas(outW, outH);
 
             let blob;
             if (fmt === 'image/bmp') {
