@@ -414,6 +414,19 @@
                 </svg>
                 <div class="icon-label" data-i18n="shell.iconVideo">Video Editor</div>
             </div>
+
+            <div class="desktop-icon" onclick="openApp('brief')">
+                <svg class="icon-img" viewBox="0 0 48 48" fill="none">
+                    <rect x="5" y="4" width="30" height="40" rx="2" fill="#fff" stroke="#000" stroke-width="2"/>
+                    <rect x="9" y="10" width="22" height="2" fill="#000"/>
+                    <rect x="9" y="16" width="22" height="2" fill="#000"/>
+                    <rect x="9" y="22" width="14" height="2" fill="#000"/>
+                    <rect x="26" y="24" width="14" height="14" fill="#ddd" stroke="#000" stroke-width="1.5"/>
+                    <polyline points="27,36 31,31 34,34 37,30 40,34" fill="none" stroke="#000" stroke-width="1.2"/>
+                    <circle cx="31" cy="28.5" r="1.6" fill="#000"/>
+                </svg>
+                <div class="icon-label" data-i18n="shell.iconBrief">Brief Editor</div>
+            </div>
         </div>
 
         <div class="desktop-icons-journey">
@@ -486,6 +499,7 @@
         const appConfig = {
             audio: { titleKey: 'app.titleAudio', src: 'AudioEditor.html', w: 1050, h: 650 },
             image: { titleKey: 'app.titleImage', src: 'ImageConverter.html', w: 950, h: 700 },
+            brief: { titleKey: 'app.titleBrief', src: 'BriefEditor.html', w: 1100, h: 760 },
             tasks: { titleKey: 'app.titleTasks', src: 'Tasks.html', w: 700, h: 600 },
             video: { titleKey: 'app.titleVideo', src: 'VideoEditor.html', w: 900, h: 650 },
             about: { titleKey: 'app.titleAbout', src: 'About.html', w: 440, h: 400, noResize: true, noMaximize: true, centered: true }

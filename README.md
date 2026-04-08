@@ -18,6 +18,8 @@ Styled after classic Macintosh System software, with a desktop environment, drag
 
 **Video Editor** — Preview video files, view file info (size, resolution, duration), resize with locked or free aspect ratio, trim from start or end, toggle audio on/off, and export to WebM.
 
+**Brief Editor** — Build technical briefs as vertical content blocks: text sections and grouped images. Place images freely inside a group, annotate them with pencil/text/eraser tools, reorder sections, save/open projects locally as JSON, and export to PDF.
+
 ## License
 
 See [LICENSE](LICENSE) for details. Free for personal and non-commercial use.

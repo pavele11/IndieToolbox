@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('i18n-pending');</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brief Editor</title>
+    <link rel="stylesheet" href="dither-ui.css">
+    <style>
+        @font-face { font-family: 'Chicago'; src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2'); }
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Chicago', 'VT323', 'Geneva', monospace; font-size: 13px; background:#c0c0c0; color:#000; }
+        .wrap { width: 900px; max-width: 900px; margin: 0 auto; padding: 12px; }
+        .panel { background:#fff; border:2px solid #000; box-shadow:2px 2px 0 #000; margin-bottom:12px; padding:10px; }
+        .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+        .mac-btn, input { font-family: inherit; font-size: 13px; }
+        .mac-btn { padding:5px 12px; border:2px solid #000; background:#fff; cursor:pointer; font-weight:bold; box-shadow: var(--mac-push-shadow); }
+        .mac-btn:hover:not(:disabled) { background-color:#fff; background-image: var(--dither-dot-hover); background-size: var(--dither-step) var(--dither-step); }
+        .mac-btn:active:not(:disabled) { background:#000; color:#fff; box-shadow:none; transform: translate(2px,2px); }
+        .meta { margin-top: 8px; display:flex; gap:8px; align-items:center; }
+        .meta input { border:2px inset #888; background:#fff; padding:4px 6px; width: 320px; }
+        .hint { font-size:12px; color:#555; margin-top:8px; }
+
+        .sheet { width: 100%; min-height: 1200px; margin: 0 auto; background:#fff; border:2px solid #000; box-shadow:2px 2px 0 #000; padding: 78px 72px 78px; }
+        .flow { display:flex; flex-direction:column; gap:14px; }
+        .drop-indicator {
+            height: 36px;
+            border: 2px dashed #000;
+            background: rgba(255, 255, 255, 0.8);
+            display: none;
+            margin: 6px 0;
+        }
+        .flow.drag-files .drop-indicator { display: block; }
+        .section {
+            width:100%;
+            position: relative;
+            padding-top: 34px;
+        }
+        .section.active { outline: none; }
+        .section-tools {
+            position: absolute;
+            right: 0;
+            top: 0;
+            display: flex;
+            gap: 4px;
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 8;
+        }
+        .sec-tool-btn {
+            width: 28px;
+            height: 28px;
+            border: 2px solid #000;
+            background: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 1px 1px 0 #000;
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+        }
+        .sec-tool-btn.insert-btn {
+            gap: 1px;
+            font-weight: 700;
+        }
+        .sec-tool-btn.insert-btn .insert-arrow {
+            width: 8px;
+            height: 8px;
+            display: inline-block;
+        }
+        .sec-tool-btn:hover {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .sec-tool-btn:active {
+            background: #000;
+            color: #fff;
+            box-shadow: none;
+            transform: translate(1px, 1px);
+        }
+        .sec-tool-btn.active {
+            background: #000;
+            color: #fff;
+            border-color: #000;
+            box-shadow: none;
+        }
+
+        .text-sec {
+            min-height: 40px;
+            border: 1px dashed transparent;
+            padding: 8px 10px;
+            line-height: 1.45;
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 15px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            cursor: text;
+            background:#fff;
+        }
+        .text-sec.is-heading {
+            font-weight: bold;
+            font-size: 19px;
+            line-height: 1.3;
+        }
+        .text-sec:hover { border-color: #aaa; }
+        .text-sec:focus { outline:none; border-color:#000; }
+
+        .group-stage {
+            position: relative;
+            width: 100%;
+            min-height: 180px;
+            border: 1px dashed #bbb;
+            background: #fafafa;
+        }
+        .group-img {
+            position:absolute;
+            border:0;
+            background:transparent;
+            box-shadow:none;
+            cursor: move;
+            user-select:none;
+        }
+        .group-img.selected { outline:2px dashed #000; outline-offset:2px; }
+        .group-img img { width:100%; height:100%; display:block; object-fit:contain; pointer-events:none; }
+        .img-actions {
+            position:absolute; top:-28px; left:0; display:none; gap:4px;
+            background:#fff; border:1px solid #000; padding:2px; white-space:nowrap;
+        }
+        .group-img.selected .img-actions { display:flex; }
+        .img-icon-btn {
+            width:22px; height:22px; padding:0; border:2px solid #000; background:#fff; cursor:pointer;
+            display:flex; align-items:center; justify-content:center; box-shadow:1px 1px 0 #000; color:#000;
+        }
+        .img-icon-btn:hover { background-color:#fff; background-image: var(--dither-dot-hover); background-size: var(--dither-step) var(--dither-step); }
+        .img-handle { width:12px; height:12px; border:2px solid #000; background:#fff; position:absolute; right:-7px; bottom:-7px; cursor:nwse-resize; }
+
+        .annot-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:999; }
+        .annot-dialog { width:min(1000px, 96vw); height:min(800px, 94vh); background:#fff; border:2px solid #000; box-shadow:2px 2px 0 #000; display:flex; flex-direction:column; }
+        .annot-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; border-bottom:1px solid #000; padding:8px; }
+        .annot-body { flex:1; display:flex; align-items:center; justify-content:center; background:#ddd; padding:8px; position:relative; }
+        #annot-canvas { max-width:100%; max-height:100%; display:block; border:1px solid #000; background:#fff; }
+        .markup-tool-btn { width:28px; height:28px; padding:0; border:2px solid #000; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:1px 1px 0 #000; }
+        .markup-tool-btn.active { color:#999; border-color:#999; box-shadow:1px 1px 0 #bbb; }
+        .annot-head input[type="range"] { width:80px; accent-color:#000; }
+        .annot-head label { font-size:11px; font-weight:bold; display:flex; align-items:center; gap:4px; }
+        #annot-color { width:28px; height:28px; border:2px solid #000; border-radius:0; padding:0; }
+        #annot-text-editor {
+            display:none; position:absolute; z-index:20; resize:none; box-sizing:border-box; margin:0; padding:4px 5px;
+            border:2px solid #000; background:rgba(255,255,255,0.96);
+            font-family:'Chicago', 'VT323', 'Geneva', monospace; font-size:14px; font-weight:bold; outline:none; overflow:auto; line-height:1.2;
+        }
+        #annot-text-editor:focus { box-shadow: 0 0 0 1px #000; }
+
+        @media print {
+            @page { margin: 10mm; }
+            body { background:#fff; }
+            .panel { display:none !important; }
+            .sheet {
+                box-shadow: none;
+                border: 0;
+                width: 900px;
+                max-width: 900px;
+                min-height: auto;
+                margin: 0 auto;
+                padding: 78px 72px 78px;
+            }
+            .flow { gap: 6px; }
+            .section { padding-top: 0; }
+            .group-stage { border:0; background:#fff; }
+            .img-actions, .img-handle, .section-tools { display:none !important; }
+            .section.active, .group-img.selected, .text-sec { outline:none !important; border-color:transparent !important; }
+            .text-sec {
+                padding: 2px 0;
+                min-height: 0;
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            .print-title {
+                display: block !important;
+                font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+                font-weight: bold;
+                font-size: 22px;
+                text-align: center;
+                margin: 0 0 20px;
+            }
+        }
+        .print-title { display:none; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="panel">
+            <div class="toolbar">
+                <button class="mac-btn" id="btn-open" data-i18n="brief.openProject">Open project</button>
+                <button class="mac-btn" id="btn-save" data-i18n="brief.saveProject">Save project</button>
+                <button class="mac-btn" id="btn-pdf" data-i18n="brief.exportPdf">Export PDF</button>
+            </div>
+            <div class="meta">
+                <label data-i18n="brief.title">Title:</label>
+                <input id="brief-title" type="text" data-i18n-placeholder="brief.titlePlaceholder" placeholder="Technical specification">
+            </div>
+            <div class="hint" data-i18n="brief.editorHint">Write text and add images. Blocks are stacked vertically.</div>
+        </div>
+        <div class="sheet">
+            <div class="print-title" id="print-title"></div>
+            <div class="flow" id="flow"></div>
+        </div>
+    </div>
+
+    <div class="annot-backdrop" id="annot-backdrop">
+        <div class="annot-dialog">
+            <div class="annot-head">
+                <button type="button" class="markup-tool-btn active" id="annot-tool-pencil" data-i18n-title="image.pencil" title="Pencil" aria-label="Pencil"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" d="M18.3687 3.29001L20.7087 5.63C21.0988 6.01999 21.0988 6.64999 20.7087 7.04001L18.8788 8.87L15.1288 5.12L16.9587 3.29001C17.1487 3.10001 17.3987 3 17.6588 3C17.9188 3 18.1688 3.09 18.3687 3.29001ZM2.99875 17.25V21H6.74875L17.8087 9.94L14.0587 6.19L2.99875 17.25ZM5.91876 19H4.99875V18.08L14.0587 9.01999L14.9788 9.94L5.91876 19Z"/></svg></button>
+                <button type="button" class="markup-tool-btn" id="annot-tool-text" data-i18n-title="image.textBox" title="Text box" aria-label="Text"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M5 4.5V7.5H10.5V19.5H13.5V7.5H19V4.5H5Z"/></svg></button>
+                <button type="button" class="markup-tool-btn" id="annot-tool-eraser" data-i18n-title="image.eraser" title="Eraser" aria-label="Eraser"><svg width="18" height="18" viewBox="0 0 24 25" fill="none"><path fill="currentColor" d="M15 3L2 16L7 21H11.1L22 10.1L15 3ZM9.6 11.2L15 5.8L19.2 10L13.9 15.4L9.6 11.2Z"/></svg></button>
+                <input type="color" id="annot-color" value="#cc0000" data-i18n-title="image.colorTitle" title="Color">
+                <label data-i18n-title="image.lineWidth" title="Line width">Ln <input type="range" id="annot-line-width" min="1" max="24" value="4"></label>
+                <label data-i18n-title="image.eraserSize" title="Eraser size">Er <input type="range" id="annot-eraser-size" min="4" max="48" value="16"></label>
+                <span style="flex:1"></span>
+                <button class="mac-btn" id="annot-cancel" data-i18n="brief.cancel">Cancel</button>
+                <button class="mac-btn" id="annot-apply" data-i18n="brief.apply">Apply</button>
+            </div>
+            <div class="annot-body"><canvas id="annot-canvas"></canvas><textarea id="annot-text-editor" rows="1"></textarea></div>
+        </div>
+    </div>
+
+    <script src="i18n.js"></script>
+    <script>
+        const STORE_KEY = 'itb_brief_flow_draft_v1';
+        const model = { meta: { title: '' }, sections: [] };
+        const docHistory = [];
+        let activeSectionId = null;
+        let selectedImage = { sectionId: null, imageId: null };
+        let topZ = 10;
+        let projectFileHandle = null;
+
+        const flow = document.getElementById('flow');
+        const briefTitle = document.getElementById('brief-title');
+        const sheet = document.querySelector('.sheet');
+        const dropIndicator = document.createElement('div');
+        dropIndicator.className = 'drop-indicator';
+
+        function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+        function debounce(fn, ms) { let t = null; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; }
+        const saveDraftLater = debounce(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(model)); } catch (e) {} }, 250);
+
+        function ensureDefaultSection() { if (!model.sections.length) model.sections.push({ id: uid(), type: 'text', text: '' }); }
+        function getSectionById(id) { return model.sections.find(s => s.id === id); }
+        function sectionIndexById(id) { return model.sections.findIndex(s => s.id === id); }
+        function pushDocHistory() {
+            docHistory.push(JSON.stringify(model));
+            if (docHistory.length > 80) docHistory.shift();
+        }
+        function restoreDocHistory() {
+            if (!docHistory.length) return false;
+            const raw = docHistory.pop();
+            const prev = JSON.parse(raw);
+            model.meta = prev.meta || { title: '' };
+            model.sections = Array.isArray(prev.sections) ? prev.sections : [];
+            ensureDefaultSection();
+            briefTitle.value = model.meta.title || '';
+            activeSectionId = null;
+            selectedImage = { sectionId: null, imageId: null };
+            render();
+            saveDraftLater();
+            return true;
+        }
+        function moveSection(id, dir) {
+            const idx = sectionIndexById(id);
+            if (idx < 0) return;
+            const ni = idx + dir;
+            if (ni < 0 || ni >= model.sections.length) return;
+            pushDocHistory();
+            const t = model.sections[idx];
+            model.sections[idx] = model.sections[ni];
+            model.sections[ni] = t;
+            activeSectionId = id;
+            render();
+            saveDraftLater();
+        }
+        function insertTextRelative(sectionId, dir) {
+            const idx = sectionIndexById(sectionId);
+            if (idx < 0) return;
+            pushDocHistory();
+            const s = { id: uid(), type: 'text', text: '', isHeading: false };
+            const insertIdx = dir < 0 ? idx : idx + 1;
+            model.sections.splice(insertIdx, 0, s);
+            activeSectionId = s.id;
+            render();
+            const el = flow.querySelector(`.text-sec[data-id="${s.id}"]`);
+            if (el) el.focus();
+            saveDraftLater();
+        }
+        function applyActiveSectionStyles() {
+            flow.querySelectorAll('.section').forEach((n) => n.classList.toggle('active', n.dataset.id === activeSectionId));
+        }
+        function setActiveSection(id) {
+            activeSectionId = id;
+            applyActiveSectionStyles();
+        }
+        function clearImageSelectionVisual() {
+            flow.querySelectorAll('.group-img.selected').forEach((n) => n.classList.remove('selected'));
+        }
+
+        function insertTextAfterActive() {
+            pushDocHistory();
+            const s = { id: uid(), type: 'text', text: '', isHeading: false };
+            const idx = activeSectionId ? sectionIndexById(activeSectionId) : model.sections.length - 1;
+            model.sections.splice(Math.max(0, idx + 1), 0, s);
+            activeSectionId = s.id;
+            render();
+            const el = flow.querySelector(`.text-sec[data-id="${s.id}"]`);
+            if (el) el.focus();
+        }
+
+        function insertTextByClickY(clientY) {
+            pushDocHistory();
+            const s = { id: uid(), type: 'text', text: '', isHeading: false };
+            const sections = Array.from(flow.querySelectorAll('.section'));
+            let insertIdx = model.sections.length;
+            for (let i = 0; i < sections.length; i++) {
+                const r = sections[i].getBoundingClientRect();
+                if (clientY < r.top + r.height / 2) { insertIdx = i; break; }
+            }
+            model.sections.splice(insertIdx, 0, s);
+            activeSectionId = s.id;
+            render();
+            const el = flow.querySelector(`.text-sec[data-id="${s.id}"]`);
+            if (el) el.focus();
+            saveDraftLater();
+        }
+
+        function getOrCreateTargetImageGroup() {
+            if (activeSectionId) {
+                const current = getSectionById(activeSectionId);
+                if (current && current.type === 'imageGroup') return current;
+                const idx = sectionIndexById(activeSectionId);
+                const next = model.sections[idx + 1];
+                if (next && next.type === 'imageGroup') return next;
+                const g = { id: uid(), type: 'imageGroup', items: [], stageH: 200 };
+                model.sections.splice(idx + 1, 0, g);
+                return g;
+            }
+            const last = model.sections[model.sections.length - 1];
+            if (last && last.type === 'imageGroup') return last;
+            const g = { id: uid(), type: 'imageGroup', items: [], stageH: 200 };
+            model.sections.push(g);
+            return g;
+        }
+
+        function getDropInsertIndex(clientY) {
+            const sections = Array.from(flow.querySelectorAll('.section'));
+            let idx = sections.length;
+            for (let i = 0; i < sections.length; i++) {
+                const r = sections[i].getBoundingClientRect();
+                if (clientY < r.top + r.height * 0.7) { idx = i; break; }
+            }
+            return idx;
+        }
+
+        function placeDropIndicatorAt(clientY) {
+            const idx = getDropInsertIndex(clientY);
+            const children = Array.from(flow.children).filter((n) => n !== dropIndicator);
+            const ref = children[idx];
+            if (ref) flow.insertBefore(dropIndicator, ref);
+            else flow.appendChild(dropIndicator);
+        }
+
+        function getOrCreateImageGroupAtIndex(index) {
+            if (index < model.sections.length && model.sections[index] && model.sections[index].type === 'imageGroup') {
+                return model.sections[index];
+            }
+            const g = { id: uid(), type: 'imageGroup', items: [], stageH: 200 };
+            model.sections.splice(index, 0, g);
+            return g;
+        }
+
+        function relayoutGroupHeight(group) {
+            let maxB = 180;
+            group.items.forEach((it) => { maxB = Math.max(maxB, it.y + it.h + 16); });
+            group.stageH = Math.max(180, maxB);
+        }
+
+        async function fileToDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const fr = new FileReader();
+                fr.onload = () => resolve(fr.result);
+                fr.onerror = reject;
+                fr.readAsDataURL(file);
+            });
+        }
+
+        async function addImagesToGroup(files) {
+            pushDocHistory();
+            const group = getOrCreateTargetImageGroup();
+            activeSectionId = group.id;
+            let offset = group.items.length * 14;
+            for (const file of files) {
+                const src = await fileToDataURL(file);
+                const img = await new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.src = src; });
+                const scale = Math.min(1, 320 / img.width);
+                const w = Math.round(img.width * scale);
+                const h = Math.round(img.height * scale);
+                group.items.push({ id: uid(), baseSrc: src, viewSrc: src, overlaySrc: null, textAnnotations: [], x: 20 + offset, y: 20 + offset, w, h, z: ++topZ });
+                offset += 16;
+            }
+            relayoutGroupHeight(group);
+            render();
+            saveDraftLater();
+        }
+
+        async function addImagesToDropPosition(files, clientY) {
+            const idx = getDropInsertIndex(clientY);
+            const group = getOrCreateImageGroupAtIndex(idx);
+            activeSectionId = group.id;
+            let offset = group.items.length * 14;
+            for (const file of files) {
+                const src = await fileToDataURL(file);
+                const img = await new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.src = src; });
+                const scale = Math.min(1, 320 / img.width);
+                const w = Math.round(img.width * scale);
+                const h = Math.round(img.height * scale);
+                group.items.push({ id: uid(), baseSrc: src, viewSrc: src, overlaySrc: null, textAnnotations: [], x: 20 + offset, y: 20 + offset, w, h, z: ++topZ });
+                offset += 16;
+            }
+            relayoutGroupHeight(group);
+            render();
+            saveDraftLater();
+        }
+
+        function render() {
+            ensureDefaultSection();
+            if (model.sections.length > 1) {
+                model.sections = model.sections.filter((s) => !(s.type === 'imageGroup' && (!s.items || s.items.length === 0)));
+                ensureDefaultSection();
+            }
+            flow.innerHTML = '';
+            model.sections.forEach((sec) => {
+                const wrap = document.createElement('div');
+                wrap.className = 'section' + (sec.id === activeSectionId ? ' active' : '');
+                wrap.dataset.id = sec.id;
+                const tools = document.createElement('div');
+                tools.className = 'section-tools';
+                const headingBtn = sec.type === 'text'
+                    ? `<button class="sec-tool-btn" data-act="heading" title="Heading" aria-label="Heading">H</button>`
+                    : '';
+                const textInsertBtns = sec.type === 'text'
+                    ? `
+                        <button class="sec-tool-btn insert-btn" data-act="insert-up" title="Add text above" aria-label="Add text above">+<svg class="insert-arrow" viewBox="0 0 8 8" aria-hidden="true"><path fill="currentColor" d="M4 1L1 5H7L4 1Z"/></svg></button>
+                        <button class="sec-tool-btn insert-btn" data-act="insert-down" title="Add text below" aria-label="Add text below">+<svg class="insert-arrow" viewBox="0 0 8 8" aria-hidden="true"><path fill="currentColor" d="M1 3H7L4 7L1 3Z"/></svg></button>
+                    `
+                    : '';
+                tools.innerHTML = `
+                    ${headingBtn}
+                    ${textInsertBtns}
+                    <button class="sec-tool-btn" data-act="up" title="Up" aria-label="Up">▲</button>
+                    <button class="sec-tool-btn" data-act="down" title="Down" aria-label="Down">▼</button>
+                    <button class="sec-tool-btn" data-act="remove" title="${I18n.t('brief.remove')}" aria-label="${I18n.t('brief.remove')}">✕</button>
+                `;
+                wrap.appendChild(tools);
+                flow.appendChild(wrap);
+                tools.querySelector('[data-act="up"]').addEventListener('click', (e) => { e.stopPropagation(); moveSection(sec.id, -1); });
+                tools.querySelector('[data-act="down"]').addEventListener('click', (e) => { e.stopPropagation(); moveSection(sec.id, 1); });
+                const insertUpEl = tools.querySelector('[data-act="insert-up"]');
+                const insertDownEl = tools.querySelector('[data-act="insert-down"]');
+                if (insertUpEl) insertUpEl.addEventListener('click', (e) => { e.stopPropagation(); insertTextRelative(sec.id, -1); });
+                if (insertDownEl) insertDownEl.addEventListener('click', (e) => { e.stopPropagation(); insertTextRelative(sec.id, 1); });
+                tools.querySelector('[data-act="remove"]').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (model.sections.length <= 1) return;
+                    pushDocHistory();
+                    model.sections = model.sections.filter((s) => s.id !== sec.id);
+                    if (activeSectionId === sec.id) activeSectionId = null;
+                    if (selectedImage.sectionId === sec.id) selectedImage = { sectionId: null, imageId: null };
+                    ensureDefaultSection();
+                    render();
+                    saveDraftLater();
+                });
+                const headingEl = tools.querySelector('[data-act="heading"]');
+                if (headingEl) {
+                    headingEl.classList.toggle('active', !!sec.isHeading);
+                    headingEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        sec.isHeading = !sec.isHeading;
+                        render();
+                        saveDraftLater();
+                    });
+                }
+
+                if (sec.type === 'text') {
+                    const el = document.createElement('div');
+                    el.className = 'text-sec' + (sec.isHeading ? ' is-heading' : '');
+                    el.contentEditable = 'true';
+                    el.dataset.id = sec.id;
+                    el.innerText = sec.text || '';
+                    wrap.appendChild(el);
+                    el.addEventListener('focus', () => {
+                        setActiveSection(sec.id);
+                        selectedImage = { sectionId: null, imageId: null };
+                        clearImageSelectionVisual();
+                    });
+                    el.addEventListener('input', () => {
+                        sec.text = el.innerText || '';
+                        saveDraftLater();
+                    });
+                    el.addEventListener('blur', () => {
+                        const raw = el.innerText || '';
+                        sec.text = raw;
+                        if (!raw.trim() && model.sections.length > 1) {
+                            pushDocHistory();
+                            model.sections = model.sections.filter(s => s.id !== sec.id);
+                            if (activeSectionId === sec.id) activeSectionId = null;
+                            render();
+                        } else saveDraftLater();
+                    });
+                } else if (sec.type === 'imageGroup') {
+                    const stage = document.createElement('div');
+                    stage.className = 'group-stage';
+                    stage.style.height = (sec.stageH || 200) + 'px';
+                    wrap.appendChild(stage);
+                    stage.addEventListener('mousedown', () => setActiveSection(sec.id));
+
+                    sec.items.forEach((it) => {
+                        const el = document.createElement('div');
+                        const isSel = selectedImage.sectionId === sec.id && selectedImage.imageId === it.id;
+                        el.className = 'group-img' + (isSel ? ' selected' : '');
+                        el.style.left = it.x + 'px'; el.style.top = it.y + 'px'; el.style.width = it.w + 'px'; el.style.height = it.h + 'px'; el.style.zIndex = String(it.z || 1);
+                        el.innerHTML = `
+                            <img src="${it.viewSrc || it.baseSrc}">
+                            <div class="img-actions">
+                                <button class="img-icon-btn" data-act="edit" title="${I18n.t('brief.annotate')}" aria-label="${I18n.t('brief.annotate')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" d="M18.3687 3.29001L20.7087 5.63C21.0988 6.01999 21.0988 6.64999 20.7087 7.04001L18.8788 8.87L15.1288 5.12L16.9587 3.29001C17.1487 3.10001 17.3987 3 17.6588 3C17.9188 3 18.1688 3.09 18.3687 3.29001ZM2.99875 17.25V21H6.74875L17.8087 9.94L14.0587 6.19L2.99875 17.25ZM5.91876 19H4.99875V18.08L14.0587 9.01999L14.9788 9.94L5.91876 19Z"/></svg></button>
+                                <button class="img-icon-btn" data-act="delete" title="${I18n.t('brief.remove')}" aria-label="${I18n.t('brief.remove')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M18.3 4.3L12 10.6L5.7 4.3L4.3 5.7L10.6 12L4.3 18.3L5.7 19.7L12 13.4L18.3 19.7L19.7 18.3L13.4 12L19.7 5.7L18.3 4.3Z"/></svg></button>
+                            </div>
+                            <div class="img-handle"></div>
+                        `;
+                        stage.appendChild(el);
+                        const handle = el.querySelector('.img-handle');
+                        const actions = el.querySelector('.img-actions');
+
+                        actions.querySelector('[data-act="edit"]').addEventListener('click', (e) => { e.stopPropagation(); openAnnotator(sec, it); });
+                        actions.querySelector('[data-act="delete"]').addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            pushDocHistory();
+                            sec.items = sec.items.filter(x => x.id !== it.id);
+                            if (selectedImage.imageId === it.id) selectedImage = { sectionId: null, imageId: null };
+                            relayoutGroupHeight(sec);
+                            render();
+                            saveDraftLater();
+                        });
+
+                        el.addEventListener('mousedown', (e) => {
+                            if (e.target === handle || e.target.closest('.img-actions')) return;
+                            e.preventDefault();
+                            selectedImage = { sectionId: sec.id, imageId: it.id };
+                            setActiveSection(sec.id);
+                            it.z = ++topZ;
+                            flow.querySelectorAll('.group-img').forEach((n) => n.classList.remove('selected'));
+                            el.classList.add('selected');
+                            const startX = e.clientX, startY = e.clientY, ox = it.x, oy = it.y;
+                            const onMove = (me) => {
+                                const dx = me.clientX - startX, dy = me.clientY - startY;
+                                it.x = clamp(ox + dx, 0, stage.clientWidth - it.w);
+                                it.y = clamp(oy + dy, 0, Math.max(0, (sec.stageH || 200) - it.h));
+                                el.style.left = it.x + 'px';
+                                el.style.top = it.y + 'px';
+                            };
+                            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); relayoutGroupHeight(sec); render(); saveDraftLater(); };
+                            window.addEventListener('mousemove', onMove);
+                            window.addEventListener('mouseup', onUp);
+                        });
+
+                        handle.addEventListener('mousedown', (e) => {
+                            e.preventDefault(); e.stopPropagation();
+                            selectedImage = { sectionId: sec.id, imageId: it.id };
+                            setActiveSection(sec.id);
+                            flow.querySelectorAll('.group-img').forEach((n) => n.classList.remove('selected'));
+                            el.classList.add('selected');
+                            const startX = e.clientX, startY = e.clientY, ow = it.w, oh = it.h;
+                            const onMove = (me) => {
+                                const dx = me.clientX - startX, dy = me.clientY - startY;
+                                it.w = clamp(ow + dx, 60, stage.clientWidth - it.x);
+                                it.h = clamp(oh + dy, 60, 5000);
+                                el.style.width = it.w + 'px';
+                                el.style.height = it.h + 'px';
+                            };
+                            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); relayoutGroupHeight(sec); render(); saveDraftLater(); };
+                            window.addEventListener('mousemove', onMove);
+                            window.addEventListener('mouseup', onUp);
+                        });
+                    });
+                }
+            });
+            I18n.applyTo(document.body);
+        }
+
+        async function pickImageFiles() {
+            if (window.showOpenFilePicker) {
+                const handles = await window.showOpenFilePicker({ multiple: true, types: [{ description:'Images', accept: { 'image/*':['.png','.jpg','.jpeg','.gif','.webp','.bmp'] } }] });
+                const files = [];
+                for (const h of handles) files.push(await h.getFile());
+                return files;
+            }
+            return new Promise((resolve) => {
+                const inp = document.createElement('input');
+                inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
+                inp.onchange = () => resolve(Array.from(inp.files || []));
+                inp.click();
+            });
+        }
+
+        async function imageCompositeDataURL(item) {
+            return new Promise((resolve) => {
+                const base = new Image();
+                base.onload = () => {
+                    const c = document.createElement('canvas');
+                    c.width = base.width; c.height = base.height;
+                    const ctx = c.getContext('2d');
+                    ctx.drawImage(base, 0, 0);
+                    const drawTexts = () => {
+                        (item.textAnnotations || []).forEach((a) => {
+                            ctx.fillStyle = a.color || '#000';
+                            ctx.font = `bold ${Math.max(12, (a.size || 16))}px "Chicago","VT323",Geneva,monospace`;
+                            ctx.fillText(a.text || '', a.x, a.y);
+                        });
+                        resolve(c.toDataURL('image/png'));
+                    };
+                    if (item.overlaySrc) {
+                        const ov = new Image();
+                        ov.onload = () => { ctx.drawImage(ov, 0, 0); drawTexts(); };
+                        ov.src = item.overlaySrc;
+                    } else drawTexts();
+                };
+                base.src = item.baseSrc;
+            });
+        }
+
+        async function saveProject() {
+            model.meta.title = briefTitle.value;
+            const payload = JSON.stringify({ version: 3, savedAt: new Date().toISOString(), model }, null, 2);
+            const blob = new Blob([payload], { type: 'application/json' });
+            if (window.showSaveFilePicker) {
+                try {
+                    projectFileHandle = await window.showSaveFilePicker({ suggestedName: 'brief.itb-brief.json', types: [{ description:'Brief project', accept:{ 'application/json':['.json'] } }] });
+                    const w = await projectFileHandle.createWritable();
+                    await w.write(blob); await w.close(); return;
+                } catch (e) { if (e.name === 'AbortError') return; }
+            }
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'brief.itb-brief.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        }
+
+        async function openProject() {
+            let file = null;
+            if (window.showOpenFilePicker) {
+                try {
+                    const [h] = await window.showOpenFilePicker({ types: [{ description:'Brief project', accept:{ 'application/json':['.json'] } }] });
+                    projectFileHandle = h; file = await h.getFile();
+                } catch (e) { if (e.name === 'AbortError') return; }
+            } else {
+                file = await new Promise((resolve) => {
+                    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+                    inp.onchange = () => resolve((inp.files && inp.files[0]) || null); inp.click();
+                });
+            }
+            if (!file) return;
+            const parsed = JSON.parse(await file.text());
+            if (!parsed || !parsed.model) throw new Error('invalid');
+            model.meta = parsed.model.meta || { title: '' };
+            model.sections = Array.isArray(parsed.model.sections) ? parsed.model.sections : [];
+            if (!model.sections.length && typeof parsed.model.docHtml === 'string') model.sections = [{ id: uid(), type: 'text', text: parsed.model.docHtml.replace(/<[^>]*>/g, ' ') }];
+            model.sections.forEach((s) => {
+                if (s.type === 'text' && typeof s.isHeading !== 'boolean') s.isHeading = false;
+            });
+            model.sections.forEach((s) => {
+                if (s.type === 'imageGroup') {
+                    if (!Array.isArray(s.items)) s.items = [];
+                    s.items.forEach((it) => {
+                        it.w = Math.max(60, Number(it.w) || 180);
+                        it.h = Math.max(60, Number(it.h) || 120);
+                    });
+                    relayoutGroupHeight(s);
+                }
+            });
+            topZ = Math.max(10, ...model.sections.filter(s => s.type === 'imageGroup').flatMap(s => s.items.map(i => i.z || 1)));
+            briefTitle.value = model.meta.title || '';
+            activeSectionId = null;
+            selectedImage = { sectionId: null, imageId: null };
+            render();
+            saveDraftLater();
+        }
+
+        function exportPdf() {
+            document.getElementById('print-title').textContent = (briefTitle.value || '').trim();
+            window.print();
+        }
+
+        // Annotation modal (same tool style as ImageConverter)
+        const annot = { section: null, item: null, baseImage: null, overlayCanvas: document.createElement('canvas'), overlayCtx: null, textAnnotations: [], tool: 'pencil', drawing:false, lastPoint:null, scale:1, textEditId:null, textDragStart:null, textPendingRect:null, history: [] };
+        annot.overlayCtx = annot.overlayCanvas.getContext('2d');
+        const annotBackdrop = document.getElementById('annot-backdrop');
+        const annotCanvas = document.getElementById('annot-canvas');
+        const annotCtx = annotCanvas.getContext('2d');
+        const annotTextEditor = document.getElementById('annot-text-editor');
+
+        function buildBrushCursorUrl(diameterWork) {
+            const dPx = Math.max(1, diameterWork * annot.scale);
+            const strokeW = 1; const pad = 3;
+            let r = dPx / 2; let size = Math.ceil(2 * r + strokeW * 2 + pad * 2);
+            size = Math.min(128, Math.max(12, size));
+            const maxR = size / 2 - strokeW - 1.5; r = Math.max(0.5, Math.min(r, maxR));
+            const cx = size / 2, cy = size / 2;
+            const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '"><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="rgba(255,255,255,0.45)" stroke="#000" stroke-width="' + strokeW + '"/></svg>';
+            return { url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), hx: Math.floor(cx), hy: Math.floor(cy) };
+        }
+        function setAnnotTool(tool) {
+            annot.tool = tool;
+            document.getElementById('annot-tool-pencil').classList.toggle('active', tool === 'pencil');
+            document.getElementById('annot-tool-text').classList.toggle('active', tool === 'text');
+            document.getElementById('annot-tool-eraser').classList.toggle('active', tool === 'eraser');
+            if (tool === 'pencil') { const c = buildBrushCursorUrl(parseInt(document.getElementById('annot-line-width').value, 10) || 4); annotCanvas.style.cursor = `url("${c.url}") ${c.hx} ${c.hy}, crosshair`; }
+            else if (tool === 'eraser') { const c = buildBrushCursorUrl(parseInt(document.getElementById('annot-eraser-size').value, 10) || 16); annotCanvas.style.cursor = `url("${c.url}") ${c.hx} ${c.hy}, crosshair`; }
+            else annotCanvas.style.cursor = 'text';
+        }
+        function annotPoint(e) { const r = annotCanvas.getBoundingClientRect(); return { x: clamp((e.clientX - r.left) / annot.scale, 0, annot.baseImage.width), y: clamp((e.clientY - r.top) / annot.scale, 0, annot.baseImage.height) }; }
+        function drawAnnot() {
+            const w = Math.round(annot.baseImage.width * annot.scale), h = Math.round(annot.baseImage.height * annot.scale);
+            annotCanvas.width = w; annotCanvas.height = h;
+            annotCtx.clearRect(0, 0, w, h);
+            annotCtx.drawImage(annot.baseImage, 0, 0, w, h);
+            annotCtx.drawImage(annot.overlayCanvas, 0, 0, w, h);
+            annot.textAnnotations.forEach((a) => { annotCtx.fillStyle = a.color || '#000'; annotCtx.font = `bold ${Math.max(12, (a.size || 16) * annot.scale)}px "Chicago","VT323",Geneva,monospace`; annotCtx.fillText(a.text || '', a.x * annot.scale, a.y * annot.scale); });
+            if (annot.textPendingRect) { const r = annot.textPendingRect; annotCtx.save(); annotCtx.strokeStyle = '#000'; annotCtx.setLineDash([4, 4]); annotCtx.strokeRect(r.x * annot.scale, r.y * annot.scale, r.w * annot.scale, r.h * annot.scale); annotCtx.restore(); }
+        }
+        function finishAnnotTextEdit() {
+            if (!annot.textEditId) { annotTextEditor.style.display = 'none'; return; }
+            const ann = annot.textAnnotations.find(t => t.id === annot.textEditId);
+            if (ann) { ann.text = annotTextEditor.value; if (!ann.text.trim()) annot.textAnnotations = annot.textAnnotations.filter(t => t.id !== ann.id); }
+            annotTextEditor.style.display = 'none'; annotTextEditor.value = ''; annot.textEditId = null; drawAnnot();
+        }
+        function pushAnnotHistory() {
+            if (!annot.baseImage) return;
+            annot.history.push({
+                overlay: annot.overlayCanvas.toDataURL('image/png'),
+                texts: JSON.parse(JSON.stringify(annot.textAnnotations || []))
+            });
+            if (annot.history.length > 60) annot.history.shift();
+        }
+        function undoAnnotHistory() {
+            if (!annot.history.length || !annot.baseImage) return;
+            const st = annot.history.pop();
+            annot.textAnnotations = JSON.parse(JSON.stringify(st.texts || []));
+            annot.overlayCtx.clearRect(0, 0, annot.overlayCanvas.width, annot.overlayCanvas.height);
+            if (st.overlay) {
+                const img = new Image();
+                img.onload = () => { annot.overlayCtx.drawImage(img, 0, 0); drawAnnot(); };
+                img.src = st.overlay;
+            } else {
+                drawAnnot();
+            }
+        }
+        function startAnnotTextEdit(ann) {
+            if (!annot.textEditId) pushAnnotHistory();
+            annot.textEditId = ann.id;
+            annotTextEditor.value = ann.text || '';
+            annotTextEditor.style.color = ann.color || '#000';
+            annotTextEditor.style.left = (ann.x * annot.scale + 2) + 'px';
+            annotTextEditor.style.top = (ann.y * annot.scale + 2) + 'px';
+            annotTextEditor.style.width = Math.max(120, ann.w * annot.scale) + 'px';
+            annotTextEditor.style.height = Math.max(28, ann.h * annot.scale) + 'px';
+            annotTextEditor.style.display = 'block';
+            requestAnimationFrame(() => annotTextEditor.focus());
+        }
+        function hitText(wx, wy) { for (let i = annot.textAnnotations.length - 1; i >= 0; i--) { const a = annot.textAnnotations[i]; if (wx >= a.x && wx <= a.x + a.w && wy >= a.y && wy <= a.y + a.h) return a; } return null; }
+        function openAnnotator(section, item) {
+            annot.section = section; annot.item = item; annot.textAnnotations = JSON.parse(JSON.stringify(item.textAnnotations || []));
+            annot.history = [];
+            const base = new Image();
+            base.onload = () => {
+                annot.baseImage = base;
+                annot.overlayCanvas.width = base.width; annot.overlayCanvas.height = base.height;
+                annot.overlayCtx.clearRect(0, 0, base.width, base.height);
+                annot.scale = Math.min(1, (window.innerWidth * 0.9) / base.width, (window.innerHeight * 0.78) / base.height);
+                if (item.overlaySrc) {
+                    const ov = new Image();
+                    ov.onload = () => { annot.overlayCtx.drawImage(ov, 0, 0); setAnnotTool('pencil'); annotBackdrop.style.display = 'flex'; drawAnnot(); };
+                    ov.src = item.overlaySrc;
+                } else { setAnnotTool('pencil'); annotBackdrop.style.display = 'flex'; drawAnnot(); }
+            };
+            base.src = item.baseSrc;
+        }
+        annotCanvas.addEventListener('mousedown', (e) => {
+            if (!annot.baseImage) return;
+            const p = annotPoint(e);
+            if (annot.tool === 'text') {
+                finishAnnotTextEdit();
+                const hit = hitText(p.x, p.y);
+                if (hit) return startAnnotTextEdit(hit);
+                pushAnnotHistory();
+                annot.textDragStart = { x: p.x, y: p.y };
+                annot.textPendingRect = { x: p.x, y: p.y, w: 1, h: 1 };
+                drawAnnot(); return;
+            }
+            pushAnnotHistory();
+            annot.drawing = true; annot.lastPoint = p;
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!annot.baseImage) return;
+            const p = annotPoint(e);
+            if (annot.tool === 'text' && annot.textDragStart) {
+                annot.textPendingRect = { x: Math.min(annot.textDragStart.x, p.x), y: Math.min(annot.textDragStart.y, p.y), w: Math.abs(p.x - annot.textDragStart.x), h: Math.abs(p.y - annot.textDragStart.y) };
+                drawAnnot(); return;
+            }
+            if (!annot.drawing) return;
+            if (annot.tool === 'pencil') {
+                annot.overlayCtx.strokeStyle = document.getElementById('annot-color').value;
+                annot.overlayCtx.lineWidth = parseInt(document.getElementById('annot-line-width').value, 10) || 4;
+                annot.overlayCtx.lineCap = 'round'; annot.overlayCtx.lineJoin = 'round';
+                annot.overlayCtx.beginPath(); annot.overlayCtx.moveTo(annot.lastPoint.x, annot.lastPoint.y); annot.overlayCtx.lineTo(p.x, p.y); annot.overlayCtx.stroke();
+            } else if (annot.tool === 'eraser') {
+                const er = (parseInt(document.getElementById('annot-eraser-size').value, 10) || 16) / 2;
+                annot.overlayCtx.save(); annot.overlayCtx.globalCompositeOperation = 'destination-out';
+                annot.overlayCtx.beginPath(); annot.overlayCtx.arc(p.x, p.y, Math.max(2, er), 0, Math.PI * 2); annot.overlayCtx.fill(); annot.overlayCtx.restore();
+            }
+            annot.lastPoint = p; drawAnnot();
+        });
+        window.addEventListener('mouseup', () => {
+            annot.drawing = false; annot.lastPoint = null;
+            if (annot.tool === 'text' && annot.textDragStart && annot.textPendingRect) {
+                const r = annot.textPendingRect;
+                if (r.w > 8 && r.h > 8) {
+                    const ann = { id: uid(), x: r.x, y: r.y, w: r.w, h: r.h, text: '', color: document.getElementById('annot-color').value || '#cc0000', size: 18 };
+                    annot.textAnnotations.push(ann);
+                    annot.textDragStart = null; annot.textPendingRect = null; drawAnnot();
+                    return requestAnimationFrame(() => startAnnotTextEdit(ann));
+                }
+            }
+            annot.textDragStart = null; annot.textPendingRect = null; drawAnnot();
+        });
+        annotTextEditor.addEventListener('blur', () => requestAnimationFrame(() => { if (document.activeElement !== annotTextEditor) finishAnnotTextEdit(); }));
+        annotTextEditor.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); annotTextEditor.blur(); } });
+        window.addEventListener('keydown', (e) => {
+            if (annotBackdrop.style.display !== 'flex') return;
+            const isUndo = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyZ';
+            if (!isUndo) return;
+            e.preventDefault();
+            finishAnnotTextEdit();
+            undoAnnotHistory();
+        });
+        document.getElementById('annot-tool-pencil').addEventListener('click', () => setAnnotTool('pencil'));
+        document.getElementById('annot-tool-text').addEventListener('click', () => setAnnotTool('text'));
+        document.getElementById('annot-tool-eraser').addEventListener('click', () => setAnnotTool('eraser'));
+        document.getElementById('annot-line-width').addEventListener('input', () => setAnnotTool(annot.tool));
+        document.getElementById('annot-eraser-size').addEventListener('input', () => setAnnotTool(annot.tool));
+        document.getElementById('annot-cancel').addEventListener('click', () => { finishAnnotTextEdit(); annotBackdrop.style.display = 'none'; annotCanvas.style.cursor = ''; });
+        document.getElementById('annot-apply').addEventListener('click', async () => {
+            finishAnnotTextEdit();
+            annot.item.overlaySrc = annot.overlayCanvas.toDataURL('image/png');
+            annot.item.textAnnotations = annot.textAnnotations;
+            annot.item.viewSrc = await imageCompositeDataURL(annot.item);
+            annotBackdrop.style.display = 'none'; annotCanvas.style.cursor = '';
+            render(); saveDraftLater();
+        });
+
+        document.getElementById('btn-save').addEventListener('click', () => saveProject().catch(() => {}));
+        document.getElementById('btn-open').addEventListener('click', () => openProject().catch(() => alert(I18n.t('brief.badFile'))));
+        document.getElementById('btn-pdf').addEventListener('click', exportPdf);
+        briefTitle.addEventListener('input', () => { model.meta.title = briefTitle.value; saveDraftLater(); });
+
+        sheet.addEventListener('dragover', (e) => {
+            if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+                e.preventDefault();
+                flow.classList.add('drag-files');
+                placeDropIndicatorAt(e.clientY);
+            }
+        });
+        sheet.addEventListener('dragenter', (e) => {
+            if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+                e.preventDefault();
+                flow.classList.add('drag-files');
+                if (!dropIndicator.parentNode) flow.appendChild(dropIndicator);
+            }
+        });
+        sheet.addEventListener('dragleave', (e) => {
+            const rt = e.relatedTarget;
+            if (!sheet.contains(rt)) {
+                flow.classList.remove('drag-files');
+                if (dropIndicator.parentNode) dropIndicator.remove();
+            }
+        });
+        sheet.addEventListener('drop', async (e) => {
+            if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+            e.preventDefault();
+            flow.classList.remove('drag-files');
+            if (dropIndicator.parentNode) dropIndicator.remove();
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+            if (!files.length) return;
+            await addImagesToDropPosition(files, e.clientY);
+        });
+
+        flow.addEventListener('paste', async (e) => {
+            const items = e.clipboardData?.items; if (!items) return;
+            for (const it of items) {
+                if (it.type && it.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = it.getAsFile();
+                    if (!file) return;
+                    await addImagesToGroup([file]);
+                    return;
+                }
+            }
+        });
+        sheet.addEventListener('click', (e) => {
+            if (e.target === sheet || e.target === flow) {
+                insertTextByClickY(e.clientY);
+            }
+        });
+        window.addEventListener('keydown', (e) => {
+            const isUndo = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyZ';
+            if (!isUndo) return;
+            if (annotBackdrop.style.display === 'flex') return;
+            const ae = document.activeElement;
+            if (ae && ae.classList && ae.classList.contains('text-sec')) return;
+            if (!docHistory.length) return;
+            e.preventDefault();
+            restoreDocHistory();
+        });
+
+        (async function init() {
+            await I18n.init();
+            try {
+                const raw = localStorage.getItem(STORE_KEY);
+                if (raw) {
+                    const draft = JSON.parse(raw);
+                    if (draft && draft.sections && confirm(I18n.t('brief.restoreDraft'))) {
+                        model.meta = draft.meta || { title: '' };
+                        model.sections = Array.isArray(draft.sections) ? draft.sections : [];
+                    }
+                }
+            } catch (e) {}
+            ensureDefaultSection();
+            model.sections.forEach((s) => { if (s.type === 'imageGroup') { if (!Array.isArray(s.items)) s.items = []; relayoutGroupHeight(s); } });
+            topZ = Math.max(10, ...model.sections.filter(s => s.type === 'imageGroup').flatMap(s => s.items.map(i => i.z || 1)));
+            briefTitle.value = model.meta.title || '';
+            render();
+            document.title = I18n.t('brief.pageTitle');
+            window.addEventListener('message', (e) => {
+                const d = e.data;
+                if (!d || d.type !== I18n.MSG_TYPE) return;
+                if (d.lang !== 'en' && d.lang !== 'ru') return;
+                I18n.setLang(d.lang).then(() => { document.title = I18n.t('brief.pageTitle'); render(); });
+            });
+        })();
+    </script>
+</body>
+</html>
