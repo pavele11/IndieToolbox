@@ -262,6 +262,32 @@
             width: 72px;
             accent-color: #000;
         }
+        .markup-font-btns {
+            display: none;
+            align-items: center;
+            gap: 3px;
+            margin-left: 2px;
+        }
+        .markup-font-btns.is-visible { display: inline-flex; }
+        .markup-font-btn {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border: 2px solid #000;
+            background: #fff;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 1px 1px 0 #000;
+            color: #000;
+        }
+        .markup-font-btn:hover {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .markup-font-btn:active { transform: translate(1px, 1px); box-shadow: none; }
         #markup-text-editor {
             display: none;
             position: absolute;
@@ -277,8 +303,8 @@
             color: #000;
             resize: none;
             outline: none;
-            overflow: auto;
-            line-height: 1.2;
+            overflow: hidden;
+            line-height: 1.25;
         }
         #markup-text-editor:focus {
             box-shadow: 0 0 0 1px #000;
@@ -492,6 +518,10 @@
                                 <path fill="currentColor" d="M15 3L2 16L7 21H11.1L22 10.1L15 3ZM9.6 11.2L15 5.8L19.2 10L13.9 15.4L9.6 11.2Z"/>
                             </svg>
                         </button>
+                        <span class="markup-font-btns" id="markup-font-btns" aria-hidden="true">
+                            <button type="button" class="markup-font-btn" id="markup-font-dec" data-i18n-title="image.fontSmaller" data-i18n-aria-label="image.fontSmaller" title="Smaller text" aria-label="Smaller text"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path fill="currentColor" d="M1 5h10v2H1V5z"/></svg></button>
+                            <button type="button" class="markup-font-btn" id="markup-font-inc" data-i18n-title="image.fontLarger" data-i18n-aria-label="image.fontLarger" title="Larger text" aria-label="Larger text"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path fill="currentColor" d="M5 1h2v4h4v2H7v4H5V7H1V5h4V1z"/></svg></button>
+                        </span>
                         <span class="markup-toolbar-sep" aria-hidden="true"></span>
                         <input type="color" id="markup-color" value="#cc0000" data-i18n-title="image.colorTitle" data-i18n-aria-label="image.colorAria" title="Color (pencil, text &amp; new boxes)" aria-label="Color">
                         <label data-i18n-title="image.lineWidth" title="Line width">Ln <input type="range" id="markup-line-width" min="1" max="24" value="4"></label>
@@ -592,6 +622,7 @@
         let markupCtx = markupCanvas.getContext('2d');
         let textAnnotations = [];
         let selectedTextId = null;
+        let markupDefaultTextBaseSize = 14;
 
         let markupLineLast = null;
         let markupDrawing = false;
@@ -644,22 +675,81 @@
             updateMarkupCursor(p.mx, p.my);
         }
 
+        function syncMarkupFontControlsVisibility() {
+            const wrap = document.getElementById('markup-font-btns');
+            if (!wrap) return;
+            const vis = markupActive && !cropActive && (markupTool === 'text' || !!textEditAnnId);
+            wrap.classList.toggle('is-visible', vis);
+            wrap.setAttribute('aria-hidden', vis ? 'false' : 'true');
+        }
+
+        function previewCanvasCssScale() {
+            const r = previewCanvas.getBoundingClientRect();
+            const cw = previewCanvas.width, ch = previewCanvas.height;
+            const kx = cw > 0 ? r.width / cw : 1;
+            const ky = ch > 0 ? r.height / ch : 1;
+            return { kx, ky, k: (kx + ky) / 2 };
+        }
+
+        function bumpMarkupTextFont(delta) {
+            if (!markupActive || cropActive || !workCanvas.width) return;
+            const bumpAnn = (ann) => {
+                if (!ann) return;
+                ann.baseSize = snapMarkupPreset(Number(ann.baseSize) || MARKUP_BASE_FONT, delta);
+            };
+            if (textEditAnnId) {
+                bumpAnn(textAnnotations.find((t) => t.id === textEditAnnId));
+            } else if (markupTool === 'text' && selectedTextId) {
+                bumpAnn(textAnnotations.find((t) => t.id === selectedTextId));
+            } else if (markupTool === 'text') {
+                markupDefaultTextBaseSize = snapMarkupPreset(Number(markupDefaultTextBaseSize) || MARKUP_BASE_FONT, delta);
+                return;
+            } else {
+                return;
+            }
+            drawPreview();
+            if (textEditAnnId) {
+                syncMarkupTextEditorFont();
+                syncTextEditorPosition();
+            }
+        }
+
         function syncTextEditorPosition() {
             if (!textEditAnnId || !markupTextEditor || markupTextEditor.style.display === 'none') return;
             const ann = textAnnotations.find(t => t.id === textEditAnnId);
             if (!ann) return;
-            const left = previewCanvas.offsetLeft + CANVAS_PAD + ann.x * displayScale;
-            const top = previewCanvas.offsetTop + CANVAS_PAD + ann.y * displayScale;
+            const previewWrap = document.getElementById('preview-wrap');
+            const canvasRect = previewCanvas.getBoundingClientRect();
+            const wrapRect = previewWrap.getBoundingClientRect();
+            const { kx, ky } = previewCanvasCssScale();
+            const P = CANVAS_PAD;
+            const left = canvasRect.left - wrapRect.left + (P + ann.x * displayScale) * kx;
+            const top = canvasRect.top - wrapRect.top + (P + ann.y * displayScale) * ky;
             markupTextEditor.style.left = left + 'px';
             markupTextEditor.style.top = top + 'px';
-            markupTextEditor.style.width = Math.max(24, ann.w * displayScale) + 'px';
-            markupTextEditor.style.height = Math.max(28, ann.h * displayScale) + 'px';
+            markupTextEditor.style.width = Math.max(120, ann.w * displayScale * kx) + 'px';
+            markupTextEditor.style.height = Math.max(28, ann.h * displayScale * ky) + 'px';
+        }
+
+        function syncMarkupTextEditorFont() {
+            if (!textEditAnnId || markupTextEditor.style.display === 'none') return;
+            const ann = textAnnotations.find((t) => t.id === textEditAnnId);
+            if (!ann) return;
+            const temp = { ...ann, text: (markupTextEditor.value !== undefined ? markupTextEditor.value : ann.text) || ' ' };
+            const layout = getMarkupTextLayout(temp);
+            const { k } = previewCanvasCssScale();
+            const drawFont = layout.font * displayScale * k;
+            markupTextEditor.style.fontSize = `${Math.max(4, drawFont)}px`;
+            markupTextEditor.style.lineHeight = '1.25';
+            markupTextEditor.style.padding = `${MARKUP_TEXT_PAD_Y * displayScale * k}px ${MARKUP_TEXT_PAD_X * displayScale * k}px`;
+            markupTextEditor.style.boxSizing = 'border-box';
         }
 
         function finishTextEdit() {
             if (!textEditAnnId) {
                 markupTextEditor.style.display = 'none';
                 markupTextEditor.value = '';
+                syncMarkupFontControlsVisibility();
                 return;
             }
             const ann = textAnnotations.find(t => t.id === textEditAnnId);
@@ -674,6 +764,7 @@
             markupTextEditor.value = '';
             textEditAnnId = null;
             drawPreview();
+            syncMarkupFontControlsVisibility();
         }
 
         function startTextEdit(ann) {
@@ -685,7 +776,11 @@
             markupTextEditor.style.color = ann.color || '#000';
             syncTextEditorPosition();
             markupTextEditor.style.display = 'block';
+            syncMarkupTextEditorFont();
+            syncMarkupFontControlsVisibility();
             requestAnimationFrame(() => {
+                syncTextEditorPosition();
+                syncMarkupTextEditorFont();
                 markupTextEditor.focus();
                 markupTextEditor.select();
             });
@@ -743,6 +838,7 @@
             markupTextEditor.value = '';
             textAnnotations = [];
             selectedTextId = null;
+            markupDefaultTextBaseSize = MARKUP_BASE_FONT;
             textPendingRect = null;
             markupLineLast = null;
             markupDrawing = false;
@@ -779,6 +875,7 @@
             document.getElementById('markup-tool-text').classList.toggle('active', tool === 'text');
             document.getElementById('markup-tool-eraser').classList.toggle('active', tool === 'eraser');
             drawPreview();
+            syncMarkupFontControlsVisibility();
         }
 
         document.getElementById('markup-tool-pencil').addEventListener('click', () => setMarkupTool('pencil'));
@@ -799,6 +896,7 @@
             }
         });
 
+        markupTextEditor.addEventListener('input', () => { syncMarkupTextEditorFont(); });
         markupTextEditor.addEventListener('blur', () => {
             requestAnimationFrame(() => {
                 if (document.activeElement !== markupTextEditor) finishTextEdit();
@@ -809,6 +907,13 @@
                 e.preventDefault();
                 markupTextEditor.blur();
             }
+        });
+        ['markup-font-inc', 'markup-font-dec'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const delta = id === 'markup-font-inc' ? 1 : -1;
+            el.addEventListener('mousedown', (e) => { e.preventDefault(); });
+            el.addEventListener('click', (e) => { e.preventDefault(); bumpMarkupTextFont(delta); });
         });
 
         function previewToWork(mx, my) {
@@ -869,7 +974,8 @@
                     w: iw,
                     h: ih,
                     text: ann.text,
-                    color: ann.color
+                    color: ann.color,
+                    baseSize: ann.baseSize != null ? ann.baseSize : MARKUP_BASE_FONT
                 });
             }
             textAnnotations = next;
@@ -899,35 +1005,83 @@
             return lines.length ? lines : [' '];
         }
 
-        function drawAnnotationText(ctx, ann, scaleX, scaleY, offX, offY) {
-            const x = offX + ann.x * scaleX;
-            const y = offY + ann.y * scaleY;
-            const w = ann.w * scaleX;
-            const h = ann.h * scaleY;
+        const markupMeasureCtx = document.createElement('canvas').getContext('2d');
+        const MARKUP_BASE_FONT = 14;
+        const MARKUP_FONT_PRESETS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 48];
+        const MARKUP_MIN_W = 80;
+        const MARKUP_MIN_H = 28;
+        const MARKUP_TEXT_PAD_X = 6;
+        const MARKUP_TEXT_PAD_Y = 5;
+
+        function snapMarkupPreset(current, direction) {
+            const cur = Number(current);
+            const base = Number.isFinite(cur) && cur > 0 ? cur : MARKUP_BASE_FONT;
+            if (direction > 0) {
+                const next = MARKUP_FONT_PRESETS.find((p) => p > base);
+                return next != null ? next : MARKUP_FONT_PRESETS[MARKUP_FONT_PRESETS.length - 1];
+            }
+            const prev = [...MARKUP_FONT_PRESETS].reverse().find((p) => p < base);
+            return prev != null ? prev : MARKUP_FONT_PRESETS[0];
+        }
+
+        function getMarkupFontSize(ctx, ann, w, h) {
             const text = ann.text || ' ';
+            const base = Math.max(10, Number(ann.baseSize) || MARKUP_BASE_FONT);
+            ctx.font = `bold ${base}px "Chicago","VT323",Geneva,monospace`;
+            const baseLines = wrapTextForAnn(ctx, text, Math.max(4, w - MARKUP_TEXT_PAD_X * 2));
+            const baseLh = base * 1.25;
+            const baseTh = baseLines.length * baseLh;
+            const baseMw = Math.max(0, ...baseLines.map((l) => ctx.measureText(l).width));
+            if (baseTh <= h - MARKUP_TEXT_PAD_Y * 2 && baseMw <= w - MARKUP_TEXT_PAD_X * 2) return base;
             let low = 4;
-            let high = Math.max(10, Math.min(h * 0.9, w / 3));
+            let high = base;
             let best = low;
             for (let i = 0; i < 24; i++) {
                 const mid = (low + high) / 2;
                 ctx.font = `bold ${mid}px "Chicago","VT323",Geneva,monospace`;
-                const lines = wrapTextForAnn(ctx, text, w - 4);
+                const lines = wrapTextForAnn(ctx, text, Math.max(4, w - MARKUP_TEXT_PAD_X * 2));
                 const lh = mid * 1.25;
                 const th = lines.length * lh;
-                const mw = Math.max(0, ...lines.map(l => ctx.measureText(l).width));
-                if (th <= h - 4 && mw <= w - 4) {
+                const mw = Math.max(0, ...lines.map((l) => ctx.measureText(l).width));
+                if (th <= h - MARKUP_TEXT_PAD_Y * 2 && mw <= w - MARKUP_TEXT_PAD_X * 2) {
                     best = mid;
                     low = mid;
                 } else high = mid;
             }
-            ctx.font = `bold ${best}px "Chicago","VT323",Geneva,monospace`;
+            return best;
+        }
+
+        function getMarkupTextLayout(ann) {
+            const w = Math.max(MARKUP_MIN_W, Number(ann.w) || MARKUP_MIN_W);
+            const h = Math.max(MARKUP_MIN_H, Number(ann.h) || MARKUP_MIN_H);
+            const font = getMarkupFontSize(markupMeasureCtx, ann, w, h);
+            markupMeasureCtx.font = `bold ${font}px "Chicago","VT323",Geneva,monospace`;
+            const lines = wrapTextForAnn(markupMeasureCtx, ann.text || ' ', Math.max(4, w - MARKUP_TEXT_PAD_X * 2));
+            return { w, h, font, lines };
+        }
+
+        function drawAnnotationText(ctx, ann, scaleX, scaleY, offX, offY) {
+            const layout = getMarkupTextLayout(ann);
+            const x = offX + ann.x * scaleX;
+            const y = offY + ann.y * scaleY;
+            const bw = layout.w * scaleX;
+            const bh = layout.h * scaleY;
+            const sFont = Math.min(scaleX, scaleY);
+            const drawFont = layout.font * sFont;
+            ctx.font = `bold ${drawFont}px "Chicago","VT323",Geneva,monospace`;
+            ctx.save();
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x, y, bw, bh);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, bw - 1), Math.max(0, bh - 1));
+            ctx.restore();
             ctx.fillStyle = ann.color || '#000';
-            const lines = wrapTextForAnn(ctx, text, w - 4);
-            const lh = best * 1.25;
-            let ty = y + best + 2;
-            for (const line of lines) {
-                if (ty > y + h) break;
-                ctx.fillText(line, x + 2, ty);
+            const lh = drawFont * 1.25;
+            let ty = y + MARKUP_TEXT_PAD_Y * scaleY + drawFont;
+            for (const line of layout.lines) {
+                if (ty > y + bh) break;
+                ctx.fillText(line, x + MARKUP_TEXT_PAD_X * scaleX, ty);
                 ty += lh;
             }
         }
@@ -1226,6 +1380,8 @@
             if (cropActive) drawCropOverlay(cw, ch);
 
             syncTextEditorPosition();
+            if (textEditAnnId && markupTextEditor.style.display === 'block') syncMarkupTextEditorFont();
+            syncMarkupFontControlsVisibility();
         }
 
         function drawCropOverlay(cw, ch) {
@@ -1393,27 +1549,28 @@
         }
 
         function applyTextResize(ann, corner, s, dx, dy) {
-            const MIN = 24;
+            const MIN_W = MARKUP_MIN_W;
+            const MIN_H = MARKUP_MIN_H;
             if (corner === 'se') {
                 ann.x = s.x;
                 ann.y = s.y;
-                ann.w = clamp(s.w + dx, MIN, workCanvas.width - s.x);
-                ann.h = clamp(s.h + dy, MIN, workCanvas.height - s.y);
+                ann.w = clamp(s.w + dx, MIN_W, workCanvas.width - s.x);
+                ann.h = clamp(s.h + dy, MIN_H, workCanvas.height - s.y);
             } else if (corner === 'ne') {
-                const ny = clamp(s.y + dy, 0, s.y + s.h - MIN);
+                const ny = clamp(s.y + dy, 0, s.y + s.h - MIN_H);
                 ann.x = s.x;
                 ann.y = ny;
-                ann.w = clamp(s.w + dx, MIN, workCanvas.width - s.x);
+                ann.w = clamp(s.w + dx, MIN_W, workCanvas.width - s.x);
                 ann.h = s.y + s.h - ny;
             } else if (corner === 'sw') {
-                const nx = clamp(s.x + dx, 0, s.x + s.w - MIN);
+                const nx = clamp(s.x + dx, 0, s.x + s.w - MIN_W);
                 ann.x = nx;
                 ann.y = s.y;
                 ann.w = s.x + s.w - nx;
-                ann.h = clamp(s.h + dy, MIN, workCanvas.height - s.y);
+                ann.h = clamp(s.h + dy, MIN_H, workCanvas.height - s.y);
             } else if (corner === 'nw') {
-                const nx = clamp(s.x + dx, 0, s.x + s.w - MIN);
-                const ny = clamp(s.y + dy, 0, s.y + s.h - MIN);
+                const nx = clamp(s.x + dx, 0, s.x + s.w - MIN_W);
+                const ny = clamp(s.y + dy, 0, s.y + s.h - MIN_H);
                 ann.w = s.x + s.w - nx;
                 ann.h = s.y + s.h - ny;
                 ann.x = nx;
@@ -1626,14 +1783,17 @@
             }
             markupErasing = false;
             if (textDragStart && textPendingRect && textPendingRect.w > 8 && textPendingRect.h > 8) {
+                const rw = Math.max(MARKUP_MIN_W, textPendingRect.w);
+                const rh = Math.max(MARKUP_MIN_H, textPendingRect.h);
                 const ann = {
                     id: Date.now(),
                     x: textPendingRect.x,
                     y: textPendingRect.y,
-                    w: textPendingRect.w,
-                    h: textPendingRect.h,
+                    w: rw,
+                    h: rh,
                     text: '',
-                    color: document.getElementById('markup-color').value || '#cc0000'
+                    color: document.getElementById('markup-color').value || '#cc0000',
+                    baseSize: Number(markupDefaultTextBaseSize) || MARKUP_BASE_FONT
                 };
                 textAnnotations.push(ann);
                 selectedTextId = ann.id;

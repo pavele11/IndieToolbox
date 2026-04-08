@@ -25,13 +25,31 @@
         .sheet { width: 100%; min-height: 1200px; margin: 0 auto; background:#fff; border:2px solid #000; box-shadow:2px 2px 0 #000; padding: 78px 72px 78px; }
         .flow { display:flex; flex-direction:column; gap:14px; }
         .drop-indicator {
-            height: 36px;
-            border: 2px dashed #000;
-            background: rgba(255, 255, 255, 0.8);
-            display: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 12px;
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            text-align: center;
+            padding: 0 12px;
+            border: 1px dashed #777;
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            overflow: hidden;
+            transition: max-height 140ms ease, margin 140ms ease, opacity 120ms ease;
+            pointer-events: none;
+        }
+        .flow.drag-files .drop-indicator.visible {
+            max-height: 110px;
+            opacity: 1;
             margin: 6px 0;
         }
-        .flow.drag-files .drop-indicator { display: block; }
+        .group-stage.drop-append-target { border-color: #000; box-shadow: inset 0 0 0 2px #000; }
         .section {
             width:100%;
             position: relative;
@@ -44,9 +62,16 @@
             top: 0;
             display: flex;
             gap: 4px;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 8;
+        }
+        .section.active .section-tools,
+        .section:focus-within .section-tools,
+        .section-tools:hover,
+        .section-tools:focus-within {
             opacity: 1;
             pointer-events: auto;
-            z-index: 8;
         }
         .sec-tool-btn {
             width: 28px;
@@ -96,7 +121,7 @@
             padding: 8px 10px;
             line-height: 1.45;
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
-            font-size: 15px;
+            font-size: 14px;
             white-space: pre-wrap;
             overflow-wrap: anywhere;
             word-break: break-word;
@@ -105,7 +130,7 @@
         }
         .text-sec.is-heading {
             font-weight: bold;
-            font-size: 19px;
+            font-size: 18px;
             line-height: 1.3;
         }
         .text-sec:hover { border-color: #aaa; }
@@ -136,9 +161,18 @@
         .img-icon-btn {
             width:22px; height:22px; padding:0; border:2px solid #000; background:#fff; cursor:pointer;
             display:flex; align-items:center; justify-content:center; box-shadow:1px 1px 0 #000; color:#000;
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            font-weight: bold;
+            line-height: 1;
         }
         .img-icon-btn:hover { background-color:#fff; background-image: var(--dither-dot-hover); background-size: var(--dither-step) var(--dither-step); }
-        .img-handle { width:12px; height:12px; border:2px solid #000; background:#fff; position:absolute; right:-7px; bottom:-7px; cursor:nwse-resize; }
+        .img-handle { width:12px; height:12px; border:2px solid #000; background:#fff; position:absolute; display:none; }
+        .group-img.selected .img-handle { display:block; }
+        .img-handle[data-corner="nw"] { left:-7px; top:-7px; cursor:nwse-resize; }
+        .img-handle[data-corner="ne"] { right:-7px; top:-7px; cursor:nesw-resize; }
+        .img-handle[data-corner="sw"] { left:-7px; bottom:-7px; cursor:nesw-resize; }
+        .img-handle[data-corner="se"] { right:-7px; bottom:-7px; cursor:nwse-resize; }
 
         .annot-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:999; }
         .annot-dialog { width:min(1000px, 96vw); height:min(800px, 94vh); background:#fff; border:2px solid #000; box-shadow:2px 2px 0 #000; display:flex; flex-direction:column; }
@@ -149,11 +183,37 @@
         .markup-tool-btn.active { color:#999; border-color:#999; box-shadow:1px 1px 0 #bbb; }
         .annot-head input[type="range"] { width:80px; accent-color:#000; }
         .annot-head label { font-size:11px; font-weight:bold; display:flex; align-items:center; gap:4px; }
+        .annot-font-btns {
+            display: none;
+            align-items: center;
+            gap: 3px;
+            margin-left: 2px;
+        }
+        .annot-font-btns.is-visible { display: inline-flex; }
+        .annot-font-btn {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border: 2px solid #000;
+            background: #fff;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 1px 1px 0 #000;
+            color: #000;
+        }
+        .annot-font-btn:hover {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .annot-font-btn:active { transform: translate(1px, 1px); box-shadow: none; }
         #annot-color { width:28px; height:28px; border:2px solid #000; border-radius:0; padding:0; }
         #annot-text-editor {
             display:none; position:absolute; z-index:20; resize:none; box-sizing:border-box; margin:0; padding:4px 5px;
             border:2px solid #000; background:rgba(255,255,255,0.96);
-            font-family:'Chicago', 'VT323', 'Geneva', monospace; font-size:14px; font-weight:bold; outline:none; overflow:auto; line-height:1.2;
+            font-family:'Chicago', 'VT323', 'Geneva', monospace; font-size:14px; font-weight:bold; outline:none; overflow:hidden; line-height:1.2;
         }
         #annot-text-editor:focus { box-shadow: 0 0 0 1px #000; }
 
@@ -172,11 +232,23 @@
             }
             .flow { gap: 6px; }
             .section { padding-top: 0; }
+            .section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .section.text-before-image {
+                break-after: avoid-page;
+                page-break-after: avoid;
+            }
+            .section.image-group {
+                break-before: avoid-page;
+                page-break-before: avoid;
+            }
             .group-stage { border:0; background:#fff; }
             .img-actions, .img-handle, .section-tools { display:none !important; }
             .section.active, .group-img.selected, .text-sec { outline:none !important; border-color:transparent !important; }
             .text-sec {
-                padding: 2px 0;
+                padding: 8px 10px;
                 min-height: 0;
                 white-space: pre-wrap;
                 overflow-wrap: anywhere;
@@ -220,6 +292,10 @@
                 <button type="button" class="markup-tool-btn active" id="annot-tool-pencil" data-i18n-title="image.pencil" title="Pencil" aria-label="Pencil"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" d="M18.3687 3.29001L20.7087 5.63C21.0988 6.01999 21.0988 6.64999 20.7087 7.04001L18.8788 8.87L15.1288 5.12L16.9587 3.29001C17.1487 3.10001 17.3987 3 17.6588 3C17.9188 3 18.1688 3.09 18.3687 3.29001ZM2.99875 17.25V21H6.74875L17.8087 9.94L14.0587 6.19L2.99875 17.25ZM5.91876 19H4.99875V18.08L14.0587 9.01999L14.9788 9.94L5.91876 19Z"/></svg></button>
                 <button type="button" class="markup-tool-btn" id="annot-tool-text" data-i18n-title="image.textBox" title="Text box" aria-label="Text"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M5 4.5V7.5H10.5V19.5H13.5V7.5H19V4.5H5Z"/></svg></button>
                 <button type="button" class="markup-tool-btn" id="annot-tool-eraser" data-i18n-title="image.eraser" title="Eraser" aria-label="Eraser"><svg width="18" height="18" viewBox="0 0 24 25" fill="none"><path fill="currentColor" d="M15 3L2 16L7 21H11.1L22 10.1L15 3ZM9.6 11.2L15 5.8L19.2 10L13.9 15.4L9.6 11.2Z"/></svg></button>
+                <span class="annot-font-btns" id="annot-font-btns" aria-hidden="true">
+                    <button type="button" class="annot-font-btn" id="annot-font-dec" data-i18n-title="brief.fontSmaller" title="Smaller text" aria-label="Smaller text"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path fill="currentColor" d="M1 5h10v2H1V5z"/></svg></button>
+                    <button type="button" class="annot-font-btn" id="annot-font-inc" data-i18n-title="brief.fontLarger" title="Larger text" aria-label="Larger text"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path fill="currentColor" d="M5 1h2v4h4v2H7v4H5V7H1V5h4V1z"/></svg></button>
+                </span>
                 <input type="color" id="annot-color" value="#cc0000" data-i18n-title="image.colorTitle" title="Color">
                 <label data-i18n-title="image.lineWidth" title="Line width">Ln <input type="range" id="annot-line-width" min="1" max="24" value="4"></label>
                 <label data-i18n-title="image.eraserSize" title="Eraser size">Er <input type="range" id="annot-eraser-size" min="4" max="48" value="16"></label>
@@ -246,6 +322,11 @@
         const sheet = document.querySelector('.sheet');
         const dropIndicator = document.createElement('div');
         dropIndicator.className = 'drop-indicator';
+        dropIndicator.textContent = 'Create image block here';
+        const dropState = { mode: 'insert', insertIndex: 0, appendGroupId: null };
+        function syncHintLabels() {
+            dropIndicator.textContent = I18n.t('brief.createImageBlockHere');
+        }
 
         function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
         function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -337,6 +418,16 @@
             if (el) el.focus();
             saveDraftLater();
         }
+        function insertTextByIndex(insertIdx) {
+            pushDocHistory();
+            const s = { id: uid(), type: 'text', text: '', isHeading: false };
+            model.sections.splice(insertIdx, 0, s);
+            activeSectionId = s.id;
+            render();
+            const el = flow.querySelector(`.text-sec[data-id="${s.id}"]`);
+            if (el) el.focus();
+            saveDraftLater();
+        }
 
         function getOrCreateTargetImageGroup() {
             if (activeSectionId) {
@@ -372,10 +463,11 @@
             const ref = children[idx];
             if (ref) flow.insertBefore(dropIndicator, ref);
             else flow.appendChild(dropIndicator);
+            dropIndicator.classList.add('visible');
         }
 
-        function getOrCreateImageGroupAtIndex(index) {
-            if (index < model.sections.length && model.sections[index] && model.sections[index].type === 'imageGroup') {
+        function getOrCreateImageGroupAtIndex(index, forceNew) {
+            if (!forceNew && index < model.sections.length && model.sections[index] && model.sections[index].type === 'imageGroup') {
                 return model.sections[index];
             }
             const g = { id: uid(), type: 'imageGroup', items: [], stageH: 200 };
@@ -417,9 +509,7 @@
             saveDraftLater();
         }
 
-        async function addImagesToDropPosition(files, clientY) {
-            const idx = getDropInsertIndex(clientY);
-            const group = getOrCreateImageGroupAtIndex(idx);
+        async function addImagesToSpecificGroup(group, files) {
             activeSectionId = group.id;
             let offset = group.items.length * 14;
             for (const file of files) {
@@ -435,6 +525,11 @@
             render();
             saveDraftLater();
         }
+        async function addImagesToDropPosition(files, clientY) {
+            const idx = getDropInsertIndex(clientY);
+            const group = getOrCreateImageGroupAtIndex(idx, true);
+            await addImagesToSpecificGroup(group, files);
+        }
 
         function render() {
             ensureDefaultSection();
@@ -446,13 +541,19 @@
             model.sections.forEach((sec) => {
                 const wrap = document.createElement('div');
                 wrap.className = 'section' + (sec.id === activeSectionId ? ' active' : '');
+                if (sec.type === 'imageGroup') wrap.classList.add('image-group');
                 wrap.dataset.id = sec.id;
+                const secIdx = sectionIndexById(sec.id);
+                const nextSec = model.sections[secIdx + 1];
+                if (sec.type === 'text' && nextSec && nextSec.type === 'imageGroup') {
+                    wrap.classList.add('text-before-image');
+                }
                 const tools = document.createElement('div');
                 tools.className = 'section-tools';
                 const headingBtn = sec.type === 'text'
                     ? `<button class="sec-tool-btn" data-act="heading" title="Heading" aria-label="Heading">H</button>`
                     : '';
-                const textInsertBtns = sec.type === 'text'
+                const textInsertBtns = (sec.type === 'text' || sec.type === 'imageGroup')
                     ? `
                         <button class="sec-tool-btn insert-btn" data-act="insert-up" title="Add text above" aria-label="Add text above">+<svg class="insert-arrow" viewBox="0 0 8 8" aria-hidden="true"><path fill="currentColor" d="M4 1L1 5H7L4 1Z"/></svg></button>
                         <button class="sec-tool-btn insert-btn" data-act="insert-down" title="Add text below" aria-label="Add text below">+<svg class="insert-arrow" viewBox="0 0 8 8" aria-hidden="true"><path fill="currentColor" d="M1 3H7L4 7L1 3Z"/></svg></button>
@@ -536,14 +637,52 @@
                         el.innerHTML = `
                             <img src="${it.viewSrc || it.baseSrc}">
                             <div class="img-actions">
+                                <button class="img-icon-btn" data-act="layer-back" title="Layer back" aria-label="Layer back">▼</button>
+                                <button class="img-icon-btn" data-act="layer-front" title="Layer front" aria-label="Layer front">▲</button>
                                 <button class="img-icon-btn" data-act="edit" title="${I18n.t('brief.annotate')}" aria-label="${I18n.t('brief.annotate')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" d="M18.3687 3.29001L20.7087 5.63C21.0988 6.01999 21.0988 6.64999 20.7087 7.04001L18.8788 8.87L15.1288 5.12L16.9587 3.29001C17.1487 3.10001 17.3987 3 17.6588 3C17.9188 3 18.1688 3.09 18.3687 3.29001ZM2.99875 17.25V21H6.74875L17.8087 9.94L14.0587 6.19L2.99875 17.25ZM5.91876 19H4.99875V18.08L14.0587 9.01999L14.9788 9.94L5.91876 19Z"/></svg></button>
                                 <button class="img-icon-btn" data-act="delete" title="${I18n.t('brief.remove')}" aria-label="${I18n.t('brief.remove')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M18.3 4.3L12 10.6L5.7 4.3L4.3 5.7L10.6 12L4.3 18.3L5.7 19.7L12 13.4L18.3 19.7L19.7 18.3L13.4 12L19.7 5.7L18.3 4.3Z"/></svg></button>
                             </div>
-                            <div class="img-handle"></div>
+                            <div class="img-handle" data-corner="nw"></div>
+                            <div class="img-handle" data-corner="ne"></div>
+                            <div class="img-handle" data-corner="sw"></div>
+                            <div class="img-handle" data-corner="se"></div>
                         `;
                         stage.appendChild(el);
-                        const handle = el.querySelector('.img-handle');
+                        const handles = Array.from(el.querySelectorAll('.img-handle'));
                         const actions = el.querySelector('.img-actions');
+                        const sortByZ = () => sec.items.slice().sort((a, b) => (a.z || 0) - (b.z || 0));
+                        const renormZ = () => {
+                            const sorted = sortByZ();
+                            sorted.forEach((img, idx) => { img.z = idx + 1; });
+                        };
+                        actions.querySelector('[data-act="layer-back"]').addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            renormZ();
+                            const sorted = sortByZ();
+                            const idx = sorted.findIndex((img) => img.id === it.id);
+                            if (idx > 0) {
+                                const prev = sorted[idx - 1];
+                                const tz = it.z;
+                                it.z = prev.z;
+                                prev.z = tz;
+                            }
+                            render();
+                            saveDraftLater();
+                        });
+                        actions.querySelector('[data-act="layer-front"]').addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            renormZ();
+                            const sorted = sortByZ();
+                            const idx = sorted.findIndex((img) => img.id === it.id);
+                            if (idx >= 0 && idx < sorted.length - 1) {
+                                const next = sorted[idx + 1];
+                                const tz = it.z;
+                                it.z = next.z;
+                                next.z = tz;
+                            }
+                            render();
+                            saveDraftLater();
+                        });
 
                         actions.querySelector('[data-act="edit"]').addEventListener('click', (e) => { e.stopPropagation(); openAnnotator(sec, it); });
                         actions.querySelector('[data-act="delete"]').addEventListener('click', (e) => {
@@ -557,11 +696,10 @@
                         });
 
                         el.addEventListener('mousedown', (e) => {
-                            if (e.target === handle || e.target.closest('.img-actions')) return;
+                            if (e.target.classList.contains('img-handle') || e.target.closest('.img-actions')) return;
                             e.preventDefault();
                             selectedImage = { sectionId: sec.id, imageId: it.id };
                             setActiveSection(sec.id);
-                            it.z = ++topZ;
                             flow.querySelectorAll('.group-img').forEach((n) => n.classList.remove('selected'));
                             el.classList.add('selected');
                             const startX = e.clientX, startY = e.clientY, ox = it.x, oy = it.y;
@@ -577,23 +715,64 @@
                             window.addEventListener('mouseup', onUp);
                         });
 
-                        handle.addEventListener('mousedown', (e) => {
-                            e.preventDefault(); e.stopPropagation();
-                            selectedImage = { sectionId: sec.id, imageId: it.id };
-                            setActiveSection(sec.id);
-                            flow.querySelectorAll('.group-img').forEach((n) => n.classList.remove('selected'));
-                            el.classList.add('selected');
-                            const startX = e.clientX, startY = e.clientY, ow = it.w, oh = it.h;
-                            const onMove = (me) => {
-                                const dx = me.clientX - startX, dy = me.clientY - startY;
-                                it.w = clamp(ow + dx, 60, stage.clientWidth - it.x);
-                                it.h = clamp(oh + dy, 60, 5000);
-                                el.style.width = it.w + 'px';
-                                el.style.height = it.h + 'px';
-                            };
-                            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); relayoutGroupHeight(sec); render(); saveDraftLater(); };
-                            window.addEventListener('mousemove', onMove);
-                            window.addEventListener('mouseup', onUp);
+                        handles.forEach((handle) => {
+                            handle.addEventListener('mousedown', (e) => {
+                                e.preventDefault(); e.stopPropagation();
+                                selectedImage = { sectionId: sec.id, imageId: it.id };
+                                setActiveSection(sec.id);
+                                flow.querySelectorAll('.group-img').forEach((n) => n.classList.remove('selected'));
+                                el.classList.add('selected');
+                                const corner = handle.dataset.corner || 'se';
+                                const startX = e.clientX, startY = e.clientY;
+                                const ox = it.x, oy = it.y, ow = it.w, oh = it.h;
+                                const aspect = ow / Math.max(1, oh);
+                                const right = ox + ow;
+                                const bottom = oy + oh;
+                                const onMove = (me) => {
+                                    const dx = me.clientX - startX;
+                                    const dy = me.clientY - startY;
+                                    let targetW = ow;
+                                    let targetH = oh;
+                                    if (corner === 'se' || corner === 'ne') targetW = ow + dx;
+                                    else targetW = ow - dx;
+                                    if (corner === 'se' || corner === 'sw') targetH = oh + dy;
+                                    else targetH = oh - dy;
+                                    targetW = Math.max(60, targetW);
+                                    targetH = Math.max(60, targetH);
+                                    if (Math.abs(dx) >= Math.abs(dy)) targetH = targetW / Math.max(0.01, aspect);
+                                    else targetW = targetH * aspect;
+                                    if (corner === 'se') {
+                                        it.w = clamp(targetW, 60, stage.clientWidth - ox);
+                                        it.h = Math.max(60, it.w / Math.max(0.01, aspect));
+                                        it.x = ox; it.y = oy;
+                                    } else if (corner === 'ne') {
+                                        const newW = clamp(targetW, 60, stage.clientWidth - ox);
+                                        const newH = Math.max(60, newW / Math.max(0.01, aspect));
+                                        it.w = newW; it.h = newH;
+                                        it.x = ox;
+                                        it.y = clamp(bottom - newH, 0, bottom - 60);
+                                    } else if (corner === 'sw') {
+                                        const newW = clamp(targetW, 60, right);
+                                        const newH = Math.max(60, newW / Math.max(0.01, aspect));
+                                        it.w = newW; it.h = newH;
+                                        it.x = clamp(right - newW, 0, right - 60);
+                                        it.y = oy;
+                                    } else { // nw
+                                        const newW = clamp(targetW, 60, right);
+                                        const newH = Math.max(60, newW / Math.max(0.01, aspect));
+                                        it.w = newW; it.h = newH;
+                                        it.x = clamp(right - newW, 0, right - 60);
+                                        it.y = clamp(bottom - newH, 0, bottom - 60);
+                                    }
+                                    el.style.left = it.x + 'px';
+                                    el.style.top = it.y + 'px';
+                                    el.style.width = it.w + 'px';
+                                    el.style.height = it.h + 'px';
+                                };
+                                const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); relayoutGroupHeight(sec); render(); saveDraftLater(); };
+                                window.addEventListener('mousemove', onMove);
+                                window.addEventListener('mouseup', onUp);
+                            });
                         });
                     });
                 }
@@ -616,6 +795,99 @@
             });
         }
 
+        function wrapAnnotText(ctx, text, maxW) {
+            const t = (text || '').trim() || ' ';
+            const words = t.split(/\s+/);
+            const lines = [];
+            let line = '';
+            for (const word of words) {
+                const test = line ? line + ' ' + word : word;
+                if (ctx.measureText(test).width > maxW && line) {
+                    lines.push(line);
+                    line = word;
+                } else line = test;
+            }
+            if (line) lines.push(line);
+            return lines.length ? lines : [' '];
+        }
+        const ANNOT_BASE_FONT = 14;
+        /** Main body sizes (pt-like ladder); +/- jumps between these, not by 1px */
+        const ANNOT_FONT_PRESETS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 48];
+        function snapAnnotPreset(current, direction) {
+            const cur = Number(current);
+            const base = Number.isFinite(cur) && cur > 0 ? cur : ANNOT_BASE_FONT;
+            if (direction > 0) {
+                const next = ANNOT_FONT_PRESETS.find((p) => p > base);
+                return next != null ? next : ANNOT_FONT_PRESETS[ANNOT_FONT_PRESETS.length - 1];
+            }
+            const prev = [...ANNOT_FONT_PRESETS].reverse().find((p) => p < base);
+            return prev != null ? prev : ANNOT_FONT_PRESETS[0];
+        }
+        const ANNOT_MIN_W = 80;
+        const ANNOT_MIN_H = 28;
+        const ANNOT_TEXT_PAD_X = 6;
+        const ANNOT_TEXT_PAD_Y = 5;
+        function getAnnotFontSize(ctx, ann, w, h) {
+            const text = ann.text || ' ';
+            const base = Math.max(10, Number(ann.baseSize) || ANNOT_BASE_FONT);
+            ctx.font = `bold ${base}px "Chicago","VT323",Geneva,monospace`;
+            const baseLines = wrapAnnotText(ctx, text, Math.max(4, w - ANNOT_TEXT_PAD_X * 2));
+            const baseLh = base * 1.25;
+            const baseTh = baseLines.length * baseLh;
+            const baseMw = Math.max(0, ...baseLines.map((l) => ctx.measureText(l).width));
+            if (baseTh <= h - ANNOT_TEXT_PAD_Y * 2 && baseMw <= w - ANNOT_TEXT_PAD_X * 2) return base;
+            let low = 4;
+            let high = base;
+            let best = low;
+            for (let i = 0; i < 24; i++) {
+                const mid = (low + high) / 2;
+                ctx.font = `bold ${mid}px "Chicago","VT323",Geneva,monospace`;
+                const lines = wrapAnnotText(ctx, text, Math.max(4, w - ANNOT_TEXT_PAD_X * 2));
+                const lh = mid * 1.25;
+                const th = lines.length * lh;
+                const mw = Math.max(0, ...lines.map(l => ctx.measureText(l).width));
+                if (th <= h - ANNOT_TEXT_PAD_Y * 2 && mw <= w - ANNOT_TEXT_PAD_X * 2) {
+                    best = mid;
+                    low = mid;
+                } else high = mid;
+            }
+            return best;
+        }
+        const annotMeasureCtx = document.createElement('canvas').getContext('2d');
+        function getAnnotTextLayout(ann) {
+            const w = Math.max(ANNOT_MIN_W, Number(ann.w) || ANNOT_MIN_W);
+            const h = Math.max(ANNOT_MIN_H, Number(ann.h) || ANNOT_MIN_H);
+            const font = getAnnotFontSize(annotMeasureCtx, ann, w, h);
+            annotMeasureCtx.font = `bold ${font}px "Chicago","VT323",Geneva,monospace`;
+            const lines = wrapAnnotText(annotMeasureCtx, ann.text || ' ', Math.max(4, w - ANNOT_TEXT_PAD_X * 2));
+            return { w, h, font, lines };
+        }
+        /** s = image px → canvas/CSS px (uniform). Text and plate scale together. */
+        function drawAnnotTextBox(ctx, ann, s, offX, offY) {
+            const layout = getAnnotTextLayout(ann);
+            const x = offX + ann.x * s;
+            const y = offY + ann.y * s;
+            const bw = layout.w * s;
+            const bh = layout.h * s;
+            const drawFont = layout.font * s;
+            ctx.font = `bold ${drawFont}px "Chicago","VT323",Geneva,monospace`;
+            ctx.save();
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x, y, bw, bh);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, bw - 1), Math.max(0, bh - 1));
+            ctx.restore();
+            ctx.fillStyle = ann.color || '#000';
+            const lh = drawFont * 1.25;
+            let ty = y + ANNOT_TEXT_PAD_Y * s + drawFont;
+            for (const line of layout.lines) {
+                if (ty > y + bh) break;
+                ctx.fillText(line, x + ANNOT_TEXT_PAD_X * s, ty);
+                ty += lh;
+            }
+        }
+
         async function imageCompositeDataURL(item) {
             return new Promise((resolve) => {
                 const base = new Image();
@@ -625,11 +897,7 @@
                     const ctx = c.getContext('2d');
                     ctx.drawImage(base, 0, 0);
                     const drawTexts = () => {
-                        (item.textAnnotations || []).forEach((a) => {
-                            ctx.fillStyle = a.color || '#000';
-                            ctx.font = `bold ${Math.max(12, (a.size || 16))}px "Chicago","VT323",Geneva,monospace`;
-                            ctx.fillText(a.text || '', a.x, a.y);
-                        });
+                        (item.textAnnotations || []).forEach((a) => drawAnnotTextBox(ctx, a, 1, 0, 0));
                         resolve(c.toDataURL('image/png'));
                     };
                     if (item.overlaySrc) {
@@ -638,7 +906,7 @@
                         ov.src = item.overlaySrc;
                     } else drawTexts();
                 };
-                base.src = item.baseSrc;
+                base.src = item.baseSrc || item.viewSrc;
             });
         }
 
@@ -682,6 +950,10 @@
                 if (s.type === 'imageGroup') {
                     if (!Array.isArray(s.items)) s.items = [];
                     s.items.forEach((it) => {
+                        if (!it.baseSrc && it.viewSrc) it.baseSrc = it.viewSrc;
+                        if (!it.viewSrc && it.baseSrc) it.viewSrc = it.baseSrc;
+                        if (!Array.isArray(it.textAnnotations)) it.textAnnotations = [];
+                        if (typeof it.overlaySrc !== 'string') it.overlaySrc = null;
                         it.w = Math.max(60, Number(it.w) || 180);
                         it.h = Math.max(60, Number(it.h) || 120);
                     });
@@ -702,12 +974,13 @@
         }
 
         // Annotation modal (same tool style as ImageConverter)
-        const annot = { section: null, item: null, baseImage: null, overlayCanvas: document.createElement('canvas'), overlayCtx: null, textAnnotations: [], tool: 'pencil', drawing:false, lastPoint:null, scale:1, textEditId:null, textDragStart:null, textPendingRect:null, history: [] };
+        const annot = { section: null, item: null, baseImage: null, overlayCanvas: document.createElement('canvas'), overlayCtx: null, textAnnotations: [], tool: 'pencil', drawing:false, lastPoint:null, scale:1, defaultTextBaseSize: ANNOT_BASE_FONT, textEditId:null, textDragStart:null, textPendingRect:null, history: [], selectedTextId:null, moveTextState:null, resizeTextState:null };
         annot.overlayCtx = annot.overlayCanvas.getContext('2d');
         const annotBackdrop = document.getElementById('annot-backdrop');
         const annotCanvas = document.getElementById('annot-canvas');
         const annotCtx = annotCanvas.getContext('2d');
         const annotTextEditor = document.getElementById('annot-text-editor');
+        const annotBody = document.querySelector('.annot-body');
 
         function buildBrushCursorUrl(diameterWork) {
             const dPx = Math.max(1, diameterWork * annot.scale);
@@ -719,6 +992,36 @@
             const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '"><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="rgba(255,255,255,0.45)" stroke="#000" stroke-width="' + strokeW + '"/></svg>';
             return { url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), hx: Math.floor(cx), hy: Math.floor(cy) };
         }
+        function syncAnnotFontControlsVisibility() {
+            const wrap = document.getElementById('annot-font-btns');
+            if (!wrap) return;
+            const open = annotBackdrop.style.display === 'flex';
+            const vis = open && (annot.tool === 'text' || !!annot.textEditId);
+            wrap.classList.toggle('is-visible', vis);
+            wrap.setAttribute('aria-hidden', vis ? 'false' : 'true');
+        }
+        function bumpAnnotTextFont(delta) {
+            if (!annot.baseImage || annotBackdrop.style.display !== 'flex') return;
+            const bumpAnn = (ann) => {
+                if (!ann) return;
+                ann.baseSize = snapAnnotPreset(Number(ann.baseSize) || ANNOT_BASE_FONT, delta);
+            };
+            if (annot.textEditId) {
+                bumpAnn(annot.textAnnotations.find((t) => t.id === annot.textEditId));
+            } else if (annot.tool === 'text' && annot.selectedTextId) {
+                bumpAnn(annot.textAnnotations.find((t) => t.id === annot.selectedTextId));
+            } else if (annot.tool === 'text') {
+                annot.defaultTextBaseSize = snapAnnotPreset(Number(annot.defaultTextBaseSize) || ANNOT_BASE_FONT, delta);
+                return;
+            } else {
+                return;
+            }
+            drawAnnot();
+            if (annot.textEditId) {
+                syncAnnotTextEditorFont();
+                syncAnnotTextEditorPosition();
+            }
+        }
         function setAnnotTool(tool) {
             annot.tool = tool;
             document.getElementById('annot-tool-pencil').classList.toggle('active', tool === 'pencil');
@@ -727,22 +1030,110 @@
             if (tool === 'pencil') { const c = buildBrushCursorUrl(parseInt(document.getElementById('annot-line-width').value, 10) || 4); annotCanvas.style.cursor = `url("${c.url}") ${c.hx} ${c.hy}, crosshair`; }
             else if (tool === 'eraser') { const c = buildBrushCursorUrl(parseInt(document.getElementById('annot-eraser-size').value, 10) || 16); annotCanvas.style.cursor = `url("${c.url}") ${c.hx} ${c.hy}, crosshair`; }
             else annotCanvas.style.cursor = 'text';
+            syncAnnotFontControlsVisibility();
         }
-        function annotPoint(e) { const r = annotCanvas.getBoundingClientRect(); return { x: clamp((e.clientX - r.left) / annot.scale, 0, annot.baseImage.width), y: clamp((e.clientY - r.top) / annot.scale, 0, annot.baseImage.height) }; }
+        function annotSheetDisplayScale(item, iw, ih) {
+            const w = Math.max(1, Number(item.w) || 1), h = Math.max(1, Number(item.h) || 1);
+            return Math.min(w / Math.max(1, iw), h / Math.max(1, ih));
+        }
+        function annotCanvasCssScale() {
+            const r = annotCanvas.getBoundingClientRect();
+            const cw = annotCanvas.width, ch = annotCanvas.height;
+            const kx = cw > 0 ? r.width / cw : 1;
+            const ky = ch > 0 ? r.height / ch : 1;
+            return { kx, ky, k: (kx + ky) / 2 };
+        }
+        function annotPoint(e) {
+            const r = annotCanvas.getBoundingClientRect();
+            const iw = annot.baseImage.width, ih = annot.baseImage.height;
+            if (r.width < 1 || r.height < 1) return { x: 0, y: 0 };
+            return {
+                x: clamp((e.clientX - r.left) * (iw / r.width), 0, iw),
+                y: clamp((e.clientY - r.top) * (ih / r.height), 0, ih),
+            };
+        }
+        function updateAnnotModalScale() {
+            if (!annot.baseImage || !annot.item) return;
+            const iw = annot.baseImage.width, ih = annot.baseImage.height;
+            const sheetFit = annotSheetDisplayScale(annot.item, iw, ih);
+            const pad = 20;
+            const bw = Math.max(60, annotBody.clientWidth - pad);
+            const bh = Math.max(60, annotBody.clientHeight - pad);
+            const needW = sheetFit * iw;
+            const needH = sheetFit * ih;
+            annot.scale = sheetFit;
+            annotBody.style.overflow = (needW > bw + 0.5 || needH > bh + 0.5) ? 'auto' : 'hidden';
+        }
         function drawAnnot() {
             const w = Math.round(annot.baseImage.width * annot.scale), h = Math.round(annot.baseImage.height * annot.scale);
             annotCanvas.width = w; annotCanvas.height = h;
             annotCtx.clearRect(0, 0, w, h);
             annotCtx.drawImage(annot.baseImage, 0, 0, w, h);
             annotCtx.drawImage(annot.overlayCanvas, 0, 0, w, h);
-            annot.textAnnotations.forEach((a) => { annotCtx.fillStyle = a.color || '#000'; annotCtx.font = `bold ${Math.max(12, (a.size || 16) * annot.scale)}px "Chicago","VT323",Geneva,monospace`; annotCtx.fillText(a.text || '', a.x * annot.scale, a.y * annot.scale); });
+            annot.textAnnotations.forEach((a) => {
+                if (annot.textEditId && a.id === annot.textEditId) return;
+                drawAnnotTextBox(annotCtx, a, annot.scale, 0, 0);
+            });
             if (annot.textPendingRect) { const r = annot.textPendingRect; annotCtx.save(); annotCtx.strokeStyle = '#000'; annotCtx.setLineDash([4, 4]); annotCtx.strokeRect(r.x * annot.scale, r.y * annot.scale, r.w * annot.scale, r.h * annot.scale); annotCtx.restore(); }
+            if (annot.selectedTextId) {
+                const a = annot.textAnnotations.find((t) => t.id === annot.selectedTextId);
+                if (a) {
+                    const x = a.x * annot.scale, y = a.y * annot.scale, ww = a.w * annot.scale, hh = a.h * annot.scale;
+                    annotCtx.save();
+                    annotCtx.strokeStyle = '#000';
+                    annotCtx.setLineDash([3, 3]);
+                    annotCtx.strokeRect(x + 0.5, y + 0.5, ww, hh);
+                    annotCtx.setLineDash([]);
+                    const hs = 5;
+                    [[x,y],[x+ww,y],[x,y+hh],[x+ww,y+hh]].forEach(([hx, hy]) => {
+                        annotCtx.fillStyle = '#fff';
+                        annotCtx.strokeStyle = '#000';
+                        annotCtx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+                        annotCtx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+                    });
+                    annotCtx.restore();
+                }
+            }
+        }
+        function syncAnnotTextEditorPosition() {
+            if (!annot.textEditId || !annotTextEditor || annotTextEditor.style.display === 'none') return;
+            const ann = annot.textAnnotations.find((t) => t.id === annot.textEditId);
+            if (!ann) return;
+            const canvasRect = annotCanvas.getBoundingClientRect();
+            const bodyRect = annotBody.getBoundingClientRect();
+            const { kx, ky } = annotCanvasCssScale();
+            const left = canvasRect.left - bodyRect.left + ann.x * annot.scale * kx;
+            const top = canvasRect.top - bodyRect.top + ann.y * annot.scale * ky;
+            annotTextEditor.style.left = left + 'px';
+            annotTextEditor.style.top = top + 'px';
+            annotTextEditor.style.width = Math.max(120, ann.w * annot.scale * kx) + 'px';
+            annotTextEditor.style.height = Math.max(28, ann.h * annot.scale * ky) + 'px';
+        }
+        function syncAnnotTextEditorFont() {
+            if (!annot.textEditId || annotTextEditor.style.display === 'none') return;
+            const ann = annot.textAnnotations.find((t) => t.id === annot.textEditId);
+            if (!ann) return;
+            const temp = { ...ann, text: (annotTextEditor.value !== undefined ? annotTextEditor.value : ann.text) || ' ' };
+            const layout = getAnnotTextLayout(temp);
+            const { k } = annotCanvasCssScale();
+            const drawFont = layout.font * annot.scale * k;
+            annotTextEditor.style.fontSize = `${Math.max(4, drawFont)}px`;
+            annotTextEditor.style.lineHeight = '1.25';
+            annotTextEditor.style.padding = `${ANNOT_TEXT_PAD_Y * annot.scale * k}px ${ANNOT_TEXT_PAD_X * annot.scale * k}px`;
+            annotTextEditor.style.boxSizing = 'border-box';
         }
         function finishAnnotTextEdit() {
             if (!annot.textEditId) { annotTextEditor.style.display = 'none'; return; }
             const ann = annot.textAnnotations.find(t => t.id === annot.textEditId);
-            if (ann) { ann.text = annotTextEditor.value; if (!ann.text.trim()) annot.textAnnotations = annot.textAnnotations.filter(t => t.id !== ann.id); }
+            if (ann) {
+                ann.text = annotTextEditor.value;
+                if (!ann.text.trim()) {
+                    annot.textAnnotations = annot.textAnnotations.filter(t => t.id !== ann.id);
+                    if (annot.selectedTextId === ann.id) annot.selectedTextId = null;
+                }
+            }
             annotTextEditor.style.display = 'none'; annotTextEditor.value = ''; annot.textEditId = null; drawAnnot();
+            syncAnnotFontControlsVisibility();
         }
         function pushAnnotHistory() {
             if (!annot.baseImage) return;
@@ -765,43 +1156,109 @@
                 drawAnnot();
             }
         }
-        function startAnnotTextEdit(ann) {
-            if (!annot.textEditId) pushAnnotHistory();
+        function startAnnotTextEdit(ann, opts) {
+            const skipHistory = opts && opts.skipHistory;
+            if (!skipHistory && annot.textEditId !== ann.id) pushAnnotHistory();
             annot.textEditId = ann.id;
             annotTextEditor.value = ann.text || '';
             annotTextEditor.style.color = ann.color || '#000';
-            annotTextEditor.style.left = (ann.x * annot.scale + 2) + 'px';
-            annotTextEditor.style.top = (ann.y * annot.scale + 2) + 'px';
-            annotTextEditor.style.width = Math.max(120, ann.w * annot.scale) + 'px';
-            annotTextEditor.style.height = Math.max(28, ann.h * annot.scale) + 'px';
+            syncAnnotTextEditorPosition();
             annotTextEditor.style.display = 'block';
-            requestAnimationFrame(() => annotTextEditor.focus());
+            syncAnnotTextEditorFont();
+            syncAnnotFontControlsVisibility();
+            requestAnimationFrame(() => { syncAnnotTextEditorPosition(); syncAnnotTextEditorFont(); annotTextEditor.focus(); });
         }
         function hitText(wx, wy) { for (let i = annot.textAnnotations.length - 1; i >= 0; i--) { const a = annot.textAnnotations[i]; if (wx >= a.x && wx <= a.x + a.w && wy >= a.y && wy <= a.y + a.h) return a; } return null; }
+        function hitTextCorner(wx, wy, ann) {
+            const { k } = annotCanvasCssScale();
+            const h = 10 / Math.max(0.001, annot.scale * k);
+            const x1 = ann.x, y1 = ann.y, x2 = ann.x + ann.w, y2 = ann.y + ann.h;
+            if (Math.abs(wx - x1) < h && Math.abs(wy - y1) < h) return 'nw';
+            if (Math.abs(wx - x2) < h && Math.abs(wy - y1) < h) return 'ne';
+            if (Math.abs(wx - x1) < h && Math.abs(wy - y2) < h) return 'sw';
+            if (Math.abs(wx - x2) < h && Math.abs(wy - y2) < h) return 'se';
+            return null;
+        }
+        function applyTextResize(ann, corner, s, dx, dy) {
+            const MIN_W = ANNOT_MIN_W;
+            const MIN_H = ANNOT_MIN_H;
+            if (corner === 'se') {
+                ann.x = s.x; ann.y = s.y;
+                ann.w = Math.max(MIN_W, s.w + dx); ann.h = Math.max(MIN_H, s.h + dy);
+            } else if (corner === 'ne') {
+                const ny = Math.min(s.y + s.h - MIN_H, s.y + dy);
+                ann.x = s.x; ann.y = ny;
+                ann.w = Math.max(MIN_W, s.w + dx); ann.h = s.y + s.h - ny;
+            } else if (corner === 'sw') {
+                const nx = Math.min(s.x + s.w - MIN_W, s.x + dx);
+                ann.x = nx; ann.y = s.y;
+                ann.w = s.x + s.w - nx; ann.h = Math.max(MIN_H, s.h + dy);
+            } else if (corner === 'nw') {
+                const nx = Math.min(s.x + s.w - MIN_W, s.x + dx);
+                const ny = Math.min(s.y + s.h - MIN_H, s.y + dy);
+                ann.x = nx; ann.y = ny;
+                ann.w = s.x + s.w - nx; ann.h = s.y + s.h - ny;
+            }
+            ann.x = clamp(ann.x, 0, annot.baseImage.width - ann.w);
+            ann.y = clamp(ann.y, 0, annot.baseImage.height - ann.h);
+        }
         function openAnnotator(section, item) {
             annot.section = section; annot.item = item; annot.textAnnotations = JSON.parse(JSON.stringify(item.textAnnotations || []));
             annot.history = [];
             const base = new Image();
             base.onload = () => {
                 annot.baseImage = base;
+                annot.defaultTextBaseSize = ANNOT_BASE_FONT;
                 annot.overlayCanvas.width = base.width; annot.overlayCanvas.height = base.height;
                 annot.overlayCtx.clearRect(0, 0, base.width, base.height);
-                annot.scale = Math.min(1, (window.innerWidth * 0.9) / base.width, (window.innerHeight * 0.78) / base.height);
+                const afterLayout = () => {
+                    updateAnnotModalScale();
+                    setAnnotTool('pencil');
+                    drawAnnot();
+                    syncAnnotFontControlsVisibility();
+                    I18n.applyTo(document.getElementById('annot-backdrop'));
+                };
                 if (item.overlaySrc) {
                     const ov = new Image();
-                    ov.onload = () => { annot.overlayCtx.drawImage(ov, 0, 0); setAnnotTool('pencil'); annotBackdrop.style.display = 'flex'; drawAnnot(); };
+                    ov.onload = () => {
+                        annot.overlayCtx.drawImage(ov, 0, 0);
+                        annotBackdrop.style.display = 'flex';
+                        requestAnimationFrame(() => { afterLayout(); });
+                    };
                     ov.src = item.overlaySrc;
-                } else { setAnnotTool('pencil'); annotBackdrop.style.display = 'flex'; drawAnnot(); }
+                } else {
+                    annotBackdrop.style.display = 'flex';
+                    requestAnimationFrame(() => { afterLayout(); });
+                }
             };
-            base.src = item.baseSrc;
+            base.src = item.baseSrc || item.viewSrc;
         }
         annotCanvas.addEventListener('mousedown', (e) => {
             if (!annot.baseImage) return;
             const p = annotPoint(e);
             if (annot.tool === 'text') {
                 finishAnnotTextEdit();
+                const sel = annot.selectedTextId ? annot.textAnnotations.find(t => t.id === annot.selectedTextId) : null;
+                if (sel) {
+                    const corner = hitTextCorner(p.x, p.y, sel);
+                    if (corner) {
+                        annot.resizeTextState = { id: sel.id, corner, startBox: { x: sel.x, y: sel.y, w: sel.w, h: sel.h }, x0: p.x, y0: p.y };
+                        return;
+                    }
+                    if (p.x >= sel.x && p.x <= sel.x + sel.w && p.y >= sel.y && p.y <= sel.y + sel.h) {
+                        if (e.detail >= 2) return startAnnotTextEdit(sel);
+                        annot.moveTextState = { id: sel.id, ox: p.x - sel.x, oy: p.y - sel.y };
+                        return;
+                    }
+                }
                 const hit = hitText(p.x, p.y);
-                if (hit) return startAnnotTextEdit(hit);
+                if (hit) {
+                    annot.selectedTextId = hit.id;
+                    if (e.detail >= 2) return startAnnotTextEdit(hit);
+                    drawAnnot();
+                    return;
+                }
+                annot.selectedTextId = null;
                 pushAnnotHistory();
                 annot.textDragStart = { x: p.x, y: p.y };
                 annot.textPendingRect = { x: p.x, y: p.y, w: 1, h: 1 };
@@ -816,6 +1273,25 @@
             if (annot.tool === 'text' && annot.textDragStart) {
                 annot.textPendingRect = { x: Math.min(annot.textDragStart.x, p.x), y: Math.min(annot.textDragStart.y, p.y), w: Math.abs(p.x - annot.textDragStart.x), h: Math.abs(p.y - annot.textDragStart.y) };
                 drawAnnot(); return;
+            }
+            if (annot.tool === 'text' && annot.moveTextState) {
+                const ann = annot.textAnnotations.find((t) => t.id === annot.moveTextState.id);
+                if (ann) {
+                    ann.x = clamp(p.x - annot.moveTextState.ox, 0, annot.baseImage.width - ann.w);
+                    ann.y = clamp(p.y - annot.moveTextState.oy, 0, annot.baseImage.height - ann.h);
+                    drawAnnot();
+                }
+                return;
+            }
+            if (annot.tool === 'text' && annot.resizeTextState) {
+                const ann = annot.textAnnotations.find((t) => t.id === annot.resizeTextState.id);
+                if (ann) {
+                    const s = annot.resizeTextState.startBox;
+                    ann.x = s.x; ann.y = s.y; ann.w = s.w; ann.h = s.h;
+                    applyTextResize(ann, annot.resizeTextState.corner, s, p.x - annot.resizeTextState.x0, p.y - annot.resizeTextState.y0);
+                    drawAnnot();
+                }
+                return;
             }
             if (!annot.drawing) return;
             if (annot.tool === 'pencil') {
@@ -835,13 +1311,24 @@
             if (annot.tool === 'text' && annot.textDragStart && annot.textPendingRect) {
                 const r = annot.textPendingRect;
                 if (r.w > 8 && r.h > 8) {
-                    const ann = { id: uid(), x: r.x, y: r.y, w: r.w, h: r.h, text: '', color: document.getElementById('annot-color').value || '#cc0000', size: 18 };
+                    pushAnnotHistory();
+                    const rw = Math.max(ANNOT_MIN_W, r.w);
+                    const rh = Math.max(ANNOT_MIN_H, r.h);
+                    const ann = { id: uid(), x: r.x, y: r.y, w: rw, h: rh, text: '', color: document.getElementById('annot-color').value || '#cc0000', size: 18, baseSize: Number(annot.defaultTextBaseSize) || ANNOT_BASE_FONT };
                     annot.textAnnotations.push(ann);
-                    annot.textDragStart = null; annot.textPendingRect = null; drawAnnot();
-                    return requestAnimationFrame(() => startAnnotTextEdit(ann));
+                    annot.selectedTextId = ann.id;
+                    annot.textDragStart = null; annot.textPendingRect = null;
+                    startAnnotTextEdit(ann, { skipHistory: true });
+                    drawAnnot();
+                    return;
                 }
             }
+            annot.moveTextState = null;
+            annot.resizeTextState = null;
             annot.textDragStart = null; annot.textPendingRect = null; drawAnnot();
+        });
+        annotTextEditor.addEventListener('input', () => {
+            syncAnnotTextEditorFont();
         });
         annotTextEditor.addEventListener('blur', () => requestAnimationFrame(() => { if (document.activeElement !== annotTextEditor) finishAnnotTextEdit(); }));
         annotTextEditor.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); annotTextEditor.blur(); } });
@@ -853,16 +1340,47 @@
             finishAnnotTextEdit();
             undoAnnotHistory();
         });
+        window.addEventListener('keydown', (e) => {
+            if (annotBackdrop.style.display !== 'flex') return;
+            if (annot.textEditId) return;
+            if (e.code !== 'Delete' && e.code !== 'Backspace') return;
+            if (!annot.selectedTextId) return;
+            const idx = annot.textAnnotations.findIndex((t) => t.id === annot.selectedTextId);
+            if (idx < 0) return;
+            e.preventDefault();
+            pushAnnotHistory();
+            annot.textAnnotations.splice(idx, 1);
+            annot.selectedTextId = null;
+            drawAnnot();
+        });
         document.getElementById('annot-tool-pencil').addEventListener('click', () => setAnnotTool('pencil'));
         document.getElementById('annot-tool-text').addEventListener('click', () => setAnnotTool('text'));
         document.getElementById('annot-tool-eraser').addEventListener('click', () => setAnnotTool('eraser'));
+        ['annot-font-inc', 'annot-font-dec'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const delta = id === 'annot-font-inc' ? 1 : -1;
+            el.addEventListener('mousedown', (e) => { e.preventDefault(); });
+            el.addEventListener('click', (e) => { e.preventDefault(); bumpAnnotTextFont(delta); });
+        });
         document.getElementById('annot-line-width').addEventListener('input', () => setAnnotTool(annot.tool));
         document.getElementById('annot-eraser-size').addEventListener('input', () => setAnnotTool(annot.tool));
+        window.addEventListener('resize', () => {
+            if (annotBackdrop.style.display !== 'flex' || !annot.baseImage) return;
+            updateAnnotModalScale();
+            drawAnnot();
+            syncAnnotTextEditorPosition();
+            syncAnnotTextEditorFont();
+        });
         document.getElementById('annot-cancel').addEventListener('click', () => { finishAnnotTextEdit(); annotBackdrop.style.display = 'none'; annotCanvas.style.cursor = ''; });
         document.getElementById('annot-apply').addEventListener('click', async () => {
             finishAnnotTextEdit();
+            if (!annot.item.baseSrc && annot.item.viewSrc) annot.item.baseSrc = annot.item.viewSrc;
             annot.item.overlaySrc = annot.overlayCanvas.toDataURL('image/png');
-            annot.item.textAnnotations = annot.textAnnotations;
+            annot.item.textAnnotations = (annot.textAnnotations || []).filter((t) => (t.text || '').trim().length > 0);
+            if (annot.selectedTextId && !annot.item.textAnnotations.some((t) => t.id === annot.selectedTextId)) {
+                annot.selectedTextId = null;
+            }
             annot.item.viewSrc = await imageCompositeDataURL(annot.item);
             annotBackdrop.style.display = 'none'; annotCanvas.style.cursor = '';
             render(); saveDraftLater();
@@ -877,7 +1395,21 @@
             if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
                 e.preventDefault();
                 flow.classList.add('drag-files');
-                placeDropIndicatorAt(e.clientY);
+                flow.querySelectorAll('.group-stage.drop-append-target').forEach((n) => n.classList.remove('drop-append-target'));
+                const stage = e.target.closest('.group-stage');
+                if (stage) {
+                    stage.classList.add('drop-append-target');
+                    dropState.mode = 'append';
+                    dropState.appendGroupId = stage.closest('.section')?.dataset.id || null;
+                    dropIndicator.classList.remove('visible');
+                    if (dropIndicator.parentNode) dropIndicator.remove();
+                } else {
+                    dropState.mode = 'insert';
+                    dropState.insertIndex = getDropInsertIndex(e.clientY);
+                    syncHintLabels();
+                    dropIndicator.classList.remove('join');
+                    placeDropIndicatorAt(e.clientY);
+                }
             }
         });
         sheet.addEventListener('dragenter', (e) => {
@@ -891,16 +1423,27 @@
             const rt = e.relatedTarget;
             if (!sheet.contains(rt)) {
                 flow.classList.remove('drag-files');
+                dropIndicator.classList.remove('visible');
                 if (dropIndicator.parentNode) dropIndicator.remove();
+                flow.querySelectorAll('.group-stage.drop-append-target').forEach((n) => n.classList.remove('drop-append-target'));
             }
         });
         sheet.addEventListener('drop', async (e) => {
             if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
             e.preventDefault();
             flow.classList.remove('drag-files');
+            dropIndicator.classList.remove('visible');
             if (dropIndicator.parentNode) dropIndicator.remove();
+            flow.querySelectorAll('.group-stage.drop-append-target').forEach((n) => n.classList.remove('drop-append-target'));
             const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
             if (!files.length) return;
+            if (dropState.mode === 'append' && dropState.appendGroupId) {
+                const g = getSectionById(dropState.appendGroupId);
+                if (g && g.type === 'imageGroup') {
+                    await addImagesToSpecificGroup(g, files);
+                    return;
+                }
+            }
             await addImagesToDropPosition(files, e.clientY);
         });
 
@@ -934,6 +1477,7 @@
 
         (async function init() {
             await I18n.init();
+            syncHintLabels();
             try {
                 const raw = localStorage.getItem(STORE_KEY);
                 if (raw) {
@@ -954,7 +1498,7 @@
                 const d = e.data;
                 if (!d || d.type !== I18n.MSG_TYPE) return;
                 if (d.lang !== 'en' && d.lang !== 'ru') return;
-                I18n.setLang(d.lang).then(() => { document.title = I18n.t('brief.pageTitle'); render(); });
+                I18n.setLang(d.lang).then(() => { document.title = I18n.t('brief.pageTitle'); syncHintLabels(); render(); });
             });
         })();
     </script>
