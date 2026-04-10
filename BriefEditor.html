@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script>document.documentElement.classList.add('i18n-pending');</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Brief Editor</title>
+    <title>Text & Images</title>
     <link rel="stylesheet" href="dither-ui.css">
     <style>
         @font-face { font-family: 'Chicago'; src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2'); }
@@ -114,6 +114,36 @@
             box-sizing: border-box;
         }
         .type-sound-row .type-sound-volume-label[hidden] { display: none !important; }
+        .brief-unsaved-strip {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border: 2px solid #000;
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+            box-shadow: 2px 2px 0 #000;
+        }
+        .brief-unsaved-strip[hidden] { display: none !important; }
+        .brief-unsaved-inner {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 10px 14px;
+        }
+        .brief-unsaved-copy { flex: 1; min-width: 220px; }
+        .brief-unsaved-title {
+            font-size: 12px;
+            font-weight: bold;
+            margin: 0 0 4px;
+            letter-spacing: 0.02em;
+        }
+        .brief-unsaved-text {
+            font-size: 12px;
+            font-weight: bold;
+            margin: 0;
+            line-height: 1.35;
+            color: #222;
+        }
         .hint { font-size:12px; color:#555; margin-top:8px; }
 
         .sheet { width: 100%; min-height: 1200px; margin: 0 auto; background:#fff; border:2px solid #000; box-shadow:2px 2px 0 #000; padding: 78px 72px 78px; }
@@ -326,19 +356,24 @@
             }
             .flow { gap: 6px; }
             .section { padding-top: 0; }
-            .section {
+            /* Text blocks may continue across pages; avoid only for image stages */
+            .section:not(.image-group) {
+                break-inside: auto;
+                page-break-inside: auto;
+            }
+            .section.text-before-image {
+                break-after: auto;
+                page-break-after: auto;
+            }
+            .section.image-group {
+                break-before: auto;
+                page-break-before: auto;
+            }
+            .group-stage {
                 break-inside: avoid;
                 page-break-inside: avoid;
             }
-            .section.text-before-image {
-                break-after: avoid-page;
-                page-break-after: avoid;
-            }
-            .section.image-group {
-                break-before: avoid-page;
-                page-break-before: avoid;
-            }
-            .group-stage { border:0; background:#fff; }
+            .section.image-group .group-stage { border:0; background:#fff; }
             .img-actions, .img-handle, .section-tools { display:none !important; }
             .section.active, .group-img.selected, .text-sec { outline:none !important; border-color:transparent !important; }
             .text-sec {
@@ -347,6 +382,10 @@
                 white-space: pre-wrap;
                 overflow-wrap: anywhere;
                 word-break: break-word;
+                break-inside: auto;
+                page-break-inside: auto;
+                orphans: 2;
+                widows: 2;
             }
             .print-title {
                 display: block !important;
@@ -370,7 +409,7 @@
             </div>
             <div class="meta">
                 <label data-i18n="brief.title">Title:</label>
-                <input id="brief-title" type="text" data-i18n-placeholder="brief.titlePlaceholder" placeholder="Technical specification">
+                <input id="brief-title" type="text" data-i18n-placeholder="brief.titlePlaceholder" placeholder="Title (optional)">
             </div>
             <div class="type-sound-row">
                 <label>
@@ -385,7 +424,16 @@
                     </span>
                 </label>
             </div>
-            <div class="hint" data-i18n="brief.editorHint">Write text and add images. Blocks are stacked vertically.</div>
+            <div class="brief-unsaved-strip" id="brief-unsaved-strip" hidden>
+                <div class="brief-unsaved-inner">
+                    <div class="brief-unsaved-copy">
+                        <div class="brief-unsaved-title" data-i18n="brief.unsavedStripTitle">No project file on disk</div>
+                        <p class="brief-unsaved-text" data-i18n="brief.unsavedStripBody">Save to a file to avoid losing work.</p>
+                    </div>
+                    <button type="button" class="mac-btn" id="brief-unsaved-save" data-i18n="brief.saveProject">Save project</button>
+                </div>
+            </div>
+            <div class="hint" data-i18n="brief.editorHint">Simple tool for plain text and images on the page.</div>
         </div>
         <div class="sheet">
             <div class="print-title" id="print-title"></div>
@@ -423,6 +471,7 @@
         let selectedImage = { sectionId: null, imageId: null };
         let topZ = 10;
         let projectFileHandle = null;
+        let briefDirty = false;
 
         const TYPE_SOUND_URLS = [1, 2, 3, 4, 5, 6].map((n) => 'assets/type_sound/type_sound_0' + n + '.wav');
         const TYPE_SOUND_LS_ON = 'itb_brief_type_sound_on';
@@ -448,6 +497,36 @@
 
         const flow = document.getElementById('flow');
         const briefTitle = document.getElementById('brief-title');
+
+        function suggestedBriefSaveFileName() {
+            let base = (briefTitle.value || '').trim()
+                .replace(/[\\/:*?"<>|#\u0000-\u001f]/g, '')
+                .replace(/^\.+/, '')
+                .replace(/\.+$/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 80);
+            if (!base) base = 'brief';
+            if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(base)) base = 'doc-' + base;
+            return base + '.itb-brief.json';
+        }
+
+        async function writeProjectToBriefFile(handle) {
+            model.meta.title = briefTitle.value;
+            const payload = JSON.stringify({ version: 3, savedAt: new Date().toISOString(), model }, null, 2);
+            const blob = new Blob([payload], { type: 'application/json' });
+            if (handle.queryPermission) {
+                let q = await handle.queryPermission({ mode: 'readwrite' });
+                if (q !== 'granted' && handle.requestPermission) {
+                    q = await handle.requestPermission({ mode: 'readwrite' });
+                    if (q !== 'granted') throw new Error('permission');
+                }
+            }
+            const w = await handle.createWritable();
+            await w.write(blob);
+            await w.close();
+        }
+
         const typeSoundEnabledEl = document.getElementById('type-sound-enabled');
         const typeSoundVolumeWrap = document.getElementById('type-sound-volume-wrap');
         const typeSoundVolumeEl = document.getElementById('type-sound-volume');
@@ -579,8 +658,51 @@
 
         function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
         function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-        function debounce(fn, ms) { let t = null; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; }
-        const saveDraftLater = debounce(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(model)); } catch (e) {} }, 250);
+        function debounce(fn, ms) {
+            let t = null;
+            const debounced = function() {
+                clearTimeout(t);
+                t = setTimeout(() => { t = null; fn(); }, ms);
+            };
+            debounced.flush = function() {
+                if (!t) return;
+                clearTimeout(t);
+                t = null;
+                fn();
+            };
+            debounced.cancel = function() { clearTimeout(t); t = null; };
+            return debounced;
+        }
+        const persistDraftSoon = debounce(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(model)); } catch (e) {} }, 250);
+        const autoSaveToFileSoon = debounce(async () => {
+            if (!projectFileHandle || !briefDirty) return;
+            try {
+                await writeProjectToBriefFile(projectFileHandle);
+                briefDirty = false;
+                updateUnsavedStrip();
+                persistDraftSoon();
+            } catch (e) { /* keep briefDirty */ }
+        }, 700);
+        function hasMeaningfulBriefContent() {
+            const t = (briefTitle.value || '').trim();
+            if (t) return true;
+            return model.sections.some((s) => {
+                if (s.type === 'text' && (s.text || '').trim()) return true;
+                if (s.type === 'imageGroup' && s.items && s.items.length) return true;
+                return false;
+            });
+        }
+        function updateUnsavedStrip() {
+            const el = document.getElementById('brief-unsaved-strip');
+            if (!el) return;
+            el.hidden = !(briefDirty && !projectFileHandle && hasMeaningfulBriefContent());
+        }
+        function markDocEdited() {
+            briefDirty = true;
+            updateUnsavedStrip();
+            persistDraftSoon();
+            autoSaveToFileSoon();
+        }
 
         function ensureDefaultSection() { if (!model.sections.length) model.sections.push({ id: uid(), type: 'text', text: '' }); }
         function getSectionById(id) { return model.sections.find(s => s.id === id); }
@@ -600,7 +722,7 @@
             activeSectionId = null;
             selectedImage = { sectionId: null, imageId: null };
             render();
-            saveDraftLater();
+            markDocEdited();
             return true;
         }
         function moveSection(id, dir) {
@@ -614,7 +736,7 @@
             model.sections[ni] = t;
             activeSectionId = id;
             render();
-            saveDraftLater();
+            markDocEdited();
         }
         function insertTextRelative(sectionId, dir) {
             const idx = sectionIndexById(sectionId);
@@ -627,7 +749,7 @@
             render();
             const el = flow.querySelector(`.text-sec[data-id="${s.id}"]`);
             if (el) el.focus();
-            saveDraftLater();
+            markDocEdited();
         }
         function applyActiveSectionStyles() {
             flow.querySelectorAll('.section').forEach((n) => n.classList.toggle('active', n.dataset.id === activeSectionId));
@@ -649,6 +771,7 @@
             render();
             const el = flow.querySelector(`.text-sec[data-id="${s.id}"]`);
             if (el) el.focus();
+            markDocEdited();
         }
 
         function insertTextByClickY(clientY) {
@@ -665,7 +788,7 @@
             render();
             const el = flow.querySelector(`.text-sec[data-id="${s.id}"]`);
             if (el) el.focus();
-            saveDraftLater();
+            markDocEdited();
         }
         function insertTextByIndex(insertIdx) {
             pushDocHistory();
@@ -675,7 +798,7 @@
             render();
             const el = flow.querySelector(`.text-sec[data-id="${s.id}"]`);
             if (el) el.focus();
-            saveDraftLater();
+            markDocEdited();
         }
 
         function getOrCreateTargetImageGroup() {
@@ -755,7 +878,7 @@
             }
             relayoutGroupHeight(group);
             render();
-            saveDraftLater();
+            markDocEdited();
         }
 
         async function addImagesToSpecificGroup(group, files) {
@@ -772,7 +895,7 @@
             }
             relayoutGroupHeight(group);
             render();
-            saveDraftLater();
+            markDocEdited();
         }
         async function addImagesToDropPosition(files, clientY) {
             const idx = getDropInsertIndex(clientY);
@@ -832,7 +955,7 @@
                     if (selectedImage.sectionId === sec.id) selectedImage = { sectionId: null, imageId: null };
                     ensureDefaultSection();
                     render();
-                    saveDraftLater();
+                    markDocEdited();
                 });
                 const headingEl = tools.querySelector('[data-act="heading"]');
                 if (headingEl) {
@@ -841,7 +964,7 @@
                         e.stopPropagation();
                         sec.isHeading = !sec.isHeading;
                         render();
-                        saveDraftLater();
+                        markDocEdited();
                     });
                 }
 
@@ -859,7 +982,7 @@
                     });
                     el.addEventListener('input', () => {
                         sec.text = el.innerText || '';
-                        saveDraftLater();
+                        markDocEdited();
                     });
                     el.addEventListener('blur', () => {
                         const raw = el.innerText || '';
@@ -869,7 +992,7 @@
                             model.sections = model.sections.filter(s => s.id !== sec.id);
                             if (activeSectionId === sec.id) activeSectionId = null;
                             render();
-                        } else saveDraftLater();
+                        } else markDocEdited();
                     });
                 } else if (sec.type === 'imageGroup') {
                     const stage = document.createElement('div');
@@ -916,7 +1039,7 @@
                                 prev.z = tz;
                             }
                             render();
-                            saveDraftLater();
+                            markDocEdited();
                         });
                         actions.querySelector('[data-act="layer-front"]').addEventListener('click', (e) => {
                             e.stopPropagation();
@@ -930,7 +1053,7 @@
                                 next.z = tz;
                             }
                             render();
-                            saveDraftLater();
+                            markDocEdited();
                         });
 
                         actions.querySelector('[data-act="edit"]').addEventListener('click', (e) => { e.stopPropagation(); openAnnotator(sec, it); });
@@ -941,7 +1064,7 @@
                             if (selectedImage.imageId === it.id) selectedImage = { sectionId: null, imageId: null };
                             relayoutGroupHeight(sec);
                             render();
-                            saveDraftLater();
+                            markDocEdited();
                         });
 
                         el.addEventListener('mousedown', (e) => {
@@ -959,7 +1082,7 @@
                                 el.style.left = it.x + 'px';
                                 el.style.top = it.y + 'px';
                             };
-                            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); relayoutGroupHeight(sec); render(); saveDraftLater(); };
+                            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); relayoutGroupHeight(sec); render(); markDocEdited(); };
                             window.addEventListener('mousemove', onMove);
                             window.addEventListener('mouseup', onUp);
                         });
@@ -1018,7 +1141,7 @@
                                     el.style.width = it.w + 'px';
                                     el.style.height = it.h + 'px';
                                 };
-                                const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); relayoutGroupHeight(sec); render(); saveDraftLater(); };
+                                const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); relayoutGroupHeight(sec); render(); markDocEdited(); };
                                 window.addEventListener('mousemove', onMove);
                                 window.addEventListener('mouseup', onUp);
                             });
@@ -1160,27 +1283,54 @@
         }
 
         async function saveProject() {
-            model.meta.title = briefTitle.value;
-            const payload = JSON.stringify({ version: 3, savedAt: new Date().toISOString(), model }, null, 2);
-            const blob = new Blob([payload], { type: 'application/json' });
-            if (window.showSaveFilePicker) {
-                try {
-                    projectFileHandle = await window.showSaveFilePicker({ suggestedName: 'brief.itb-brief.json', types: [{ description:'Brief project', accept:{ 'application/json':['.json'] } }] });
-                    const w = await projectFileHandle.createWritable();
-                    await w.write(blob); await w.close(); return;
-                } catch (e) { if (e.name === 'AbortError') return; }
+            try {
+                if (projectFileHandle) {
+                    await writeProjectToBriefFile(projectFileHandle);
+                    briefDirty = false;
+                    updateUnsavedStrip();
+                    persistDraftSoon();
+                    return;
+                }
+                if (window.showSaveFilePicker) {
+                    try {
+                        projectFileHandle = await window.showSaveFilePicker({
+                            suggestedName: suggestedBriefSaveFileName(),
+                            types: [{ description: I18n.t('brief.projectFileKind'), accept: { 'application/json': ['.json'] } }],
+                        });
+                        await writeProjectToBriefFile(projectFileHandle);
+                        briefDirty = false;
+                        updateUnsavedStrip();
+                        persistDraftSoon();
+                        return;
+                    } catch (e) {
+                        if (e.name === 'AbortError') return;
+                    }
+                }
+                model.meta.title = briefTitle.value;
+                const payload = JSON.stringify({ version: 3, savedAt: new Date().toISOString(), model }, null, 2);
+                const blob = new Blob([payload], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = suggestedBriefSaveFileName();
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+                briefDirty = false;
+                updateUnsavedStrip();
+                persistDraftSoon();
+            } catch (e) {
+                alert(I18n.t('brief.saveFailed'));
             }
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'brief.itb-brief.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
         }
 
         async function openProject() {
             let file = null;
             if (window.showOpenFilePicker) {
                 try {
-                    const [h] = await window.showOpenFilePicker({ types: [{ description:'Brief project', accept:{ 'application/json':['.json'] } }] });
+                    const [h] = await window.showOpenFilePicker({ types: [{ description: I18n.t('brief.projectFileKind'), accept:{ 'application/json':['.json'] } }] });
                     projectFileHandle = h; file = await h.getFile();
                 } catch (e) { if (e.name === 'AbortError') return; }
             } else {
+                projectFileHandle = null;
                 file = await new Promise((resolve) => {
                     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
                     inp.onchange = () => resolve((inp.files && inp.files[0]) || null); inp.click();
@@ -1214,7 +1364,10 @@
             activeSectionId = null;
             selectedImage = { sectionId: null, imageId: null };
             render();
-            saveDraftLater();
+            autoSaveToFileSoon.cancel();
+            briefDirty = false;
+            updateUnsavedStrip();
+            persistDraftSoon();
         }
 
         function exportPdf() {
@@ -1632,13 +1785,25 @@
             }
             annot.item.viewSrc = await imageCompositeDataURL(annot.item);
             annotBackdrop.style.display = 'none'; annotCanvas.style.cursor = '';
-            render(); saveDraftLater();
+            render(); markDocEdited();
         });
 
         document.getElementById('btn-save').addEventListener('click', () => saveProject().catch(() => {}));
         document.getElementById('btn-open').addEventListener('click', () => openProject().catch(() => alert(I18n.t('brief.badFile'))));
         document.getElementById('btn-pdf').addEventListener('click', exportPdf);
-        briefTitle.addEventListener('input', () => { model.meta.title = briefTitle.value; saveDraftLater(); });
+        briefTitle.addEventListener('input', () => { model.meta.title = briefTitle.value; markDocEdited(); });
+        document.getElementById('brief-unsaved-save').addEventListener('click', () => saveProject().catch(() => {}));
+        window.addEventListener('beforeunload', (e) => {
+            if (!briefDirty || projectFileHandle || !hasMeaningfulBriefContent()) return;
+            e.preventDefault();
+            e.returnValue = '';
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && projectFileHandle && briefDirty) autoSaveToFileSoon.flush();
+        });
+        window.addEventListener('pagehide', () => {
+            if (projectFileHandle && briefDirty) autoSaveToFileSoon.flush();
+        });
 
         sheet.addEventListener('dragover', (e) => {
             if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
@@ -1727,6 +1892,7 @@
         (async function init() {
             await I18n.init();
             syncHintLabels();
+            let restoredFromLocalDraft = false;
             try {
                 const raw = localStorage.getItem(STORE_KEY);
                 if (raw) {
@@ -1734,6 +1900,7 @@
                     if (draft && draft.sections && confirm(I18n.t('brief.restoreDraft'))) {
                         model.meta = draft.meta || { title: '' };
                         model.sections = Array.isArray(draft.sections) ? draft.sections : [];
+                        restoredFromLocalDraft = true;
                     }
                 }
             } catch (e) {}
@@ -1742,6 +1909,9 @@
             topZ = Math.max(10, ...model.sections.filter(s => s.type === 'imageGroup').flatMap(s => s.items.map(i => i.z || 1)));
             briefTitle.value = model.meta.title || '';
             render();
+            briefDirty = restoredFromLocalDraft;
+            updateUnsavedStrip();
+            persistDraftSoon();
             document.title = I18n.t('brief.pageTitle');
             window.addEventListener('message', (e) => {
                 const d = e.data;

@@ -146,27 +146,27 @@
         .desktop-icons {
             position: absolute;
             top: 20px;
-            right: 24px;
+            right: 28px;
             display: flex;
             flex-direction: column;
             gap: 28px;
             align-items: center;
+            max-width: min(132px, calc(100vw - 40px));
         }
 
         .desktop-icons-journey {
             position: absolute;
             bottom: 28px;
-            left: 24px;
+            left: 28px;
             display: flex;
             flex-direction: column;
             gap: 28px;
             align-items: center;
+            max-width: min(132px, calc(100vw - 40px));
         }
 
         .desktop-icon-companion .icon-label {
-            white-space: normal;
-            max-width: 88px;
-            line-height: 1.1;
+            max-width: 118px;
         }
 
         .desktop-icon {
@@ -175,9 +175,12 @@
             align-items: center;
             gap: 4px;
             cursor: pointer;
-            width: 80px;
-            padding: 4px;
+            width: 100%;
+            max-width: 118px;
+            min-width: 72px;
+            padding: 4px 2px;
             border: 2px solid transparent;
+            box-sizing: border-box;
         }
         .desktop-icon:active .icon-img,
         .desktop-icon.selected .icon-img {
@@ -198,9 +201,14 @@
         .icon-label {
             font-size: 12px;
             text-align: center;
-            padding: 1px 4px;
-            white-space: nowrap;
+            padding: 1px 2px;
+            white-space: normal;
+            line-height: 1.2;
             font-weight: bold;
+            max-width: 118px;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            hyphens: auto;
         }
 
         .app-window {
@@ -425,7 +433,7 @@
                     <polyline points="27,36 31,31 34,34 37,30 40,34" fill="none" stroke="#000" stroke-width="1.2"/>
                     <circle cx="31" cy="28.5" r="1.6" fill="#000"/>
                 </svg>
-                <div class="icon-label" data-i18n="shell.iconBrief">Brief Editor</div>
+                <div class="icon-label" data-i18n="shell.iconBrief">Text & Images</div>
             </div>
         </div>
 
