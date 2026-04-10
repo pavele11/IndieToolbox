@@ -173,7 +173,7 @@
   "brief.restoreDraft": "Restore unsaved draft from local storage?",
   "brief.badFile": "Failed to open project file.",
   "brief.addImage": "Add image",
-  "brief.editorHint": "Simple tool for plain text and dropping images on the page. Drag pictures into a group and arrange them; not a layout or publishing app.",
+  "brief.editorHint": "A simple editor for alternating text and images: place several pictures in an image block, draw on top of them, and add comments.",
   "brief.createTextBlockHere": "Create text block",
   "brief.createImageBlockHere": "Create image block here",
   "brief.typeSound": "Typewriter sound",
