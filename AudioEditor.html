@@ -161,6 +161,28 @@
             display: block;
         }
 
+        .upload-options {
+            margin-top: 14px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .upload-options label {
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            max-width: min(420px, 100%);
+            text-align: left;
+        }
+        .upload-options input[type="checkbox"] {
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
         .track-card {
             background: #fff;
             border: 2px solid #000;
@@ -297,6 +319,29 @@
             background: #fff;
             box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
             box-sizing: border-box;
+        }
+        /* Align mute row with label + range rows (spacer = same slot as “Volume” / “Reverb” title) */
+        .controls-grid .mute-mix-spacer-label {
+            display: block;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1.2;
+            margin-bottom: 3px;
+            min-height: 1.2em;
+            visibility: hidden;
+            user-select: none;
+        }
+        .controls-grid label.mute-mix-control {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+            margin-bottom: 0;
+            min-height: 22px;
+            cursor: pointer;
+        }
+        .controls-grid label.mute-mix-control input[type="checkbox"] {
+            flex-shrink: 0;
         }
         .action-buttons {
             display: flex;
@@ -527,6 +572,12 @@
                     <span class="upload-icon">&#9835;</span>
                     <div style="font-weight:bold;font-size:14px;margin-bottom:6px;" data-i18n="audio.dropHere">Drop audio files here</div>
                     <div style="font-size:12px;color:#666;" data-i18n="audio.dropHint">...or click to select files</div>
+                    <div class="upload-options">
+                        <label>
+                            <input type="checkbox" id="upload-noise-reduction">
+                            <span data-i18n="audio.uploadNoiseReduction">Reduce steady noise on import</span>
+                        </label>
+                    </div>
                     <input type="file" id="fileInput" accept="audio/*" multiple style="display:none;">
                 </div>
             </div>
@@ -584,6 +635,129 @@
         const fileInput = document.getElementById('fileInput');
         const uploadArea = document.getElementById('upload-area');
 
+        const reverbIRByContext = new WeakMap();
+
+        function getTrackPlaybackRate(track) {
+            return Math.pow(2, (Number(track.pitchSemitones) || 0) / 12);
+        }
+
+        function getTrackWallDuration(track) {
+            const bufDur = track.trimEnd - track.trimStart;
+            const rate = getTrackPlaybackRate(track);
+            return bufDur / Math.max(0.05, rate);
+        }
+
+        function getReverbTailSeconds(track) {
+            const w = Math.max(0, Math.min(1, (Number(track.reverb) || 0) / 100));
+            return w * 0.95;
+        }
+
+        function getTrackMixEnd(track) {
+            if (track.muted || track.trimEnd <= track.trimStart) return 0;
+            return (track.offset || 0) + getTrackWallDuration(track) + getReverbTailSeconds(track);
+        }
+
+        function getReverbImpulseForContext(ctx) {
+            let ir = reverbIRByContext.get(ctx);
+            if (ir) return ir;
+            const sr = ctx.sampleRate;
+            const dur = 0.85;
+            const len = Math.ceil(dur * sr);
+            ir = ctx.createBuffer(2, len, sr);
+            for (let ch = 0; ch < 2; ch++) {
+                const d = ir.getChannelData(ch);
+                for (let i = 0; i < len; i++) {
+                    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
+                }
+            }
+            reverbIRByContext.set(ctx, ir);
+            return ir;
+        }
+
+        function applyNoiseReductionToBuffer(ac, input) {
+            const ch = input.numberOfChannels;
+            const len = input.length;
+            const rate = input.sampleRate;
+            const win = 1024;
+            const hop = 512;
+            const rmsList = [];
+            for (let c = 0; c < ch; c++) {
+                const d = input.getChannelData(c);
+                for (let i = 0; i + win <= len; i += hop) {
+                    let sum = 0;
+                    for (let j = 0; j < win; j++) sum += d[i + j] * d[i + j];
+                    rmsList.push(Math.sqrt(sum / win));
+                }
+            }
+            if (!rmsList.length) return input;
+            rmsList.sort((a, b) => a - b);
+            const noiseFloor = Math.max(1e-6, rmsList[Math.floor(rmsList.length * 0.08)] || 0.0001);
+            const knee = noiseFloor * 3;
+            const floorAtten = 0.2;
+            const out = ac.createBuffer(ch, len, rate);
+            for (let c = 0; c < ch; c++) {
+                const src = input.getChannelData(c);
+                const dst = out.getChannelData(c);
+                for (let i = 0; i < len; i++) {
+                    const s = src[i];
+                    const m = Math.abs(s);
+                    let g = 1;
+                    if (m < knee) {
+                        const t = m / knee;
+                        g = floorAtten + (1 - floorAtten) * t * t;
+                    }
+                    dst[i] = s * g;
+                }
+            }
+            return out;
+        }
+
+        function buildTrackGraph(ctx, track) {
+            const source = ctx.createBufferSource();
+            source.buffer = track.buffer;
+            source.playbackRate.value = getTrackPlaybackRate(track);
+
+            const envelope = ctx.createGain();
+            source.connect(envelope);
+
+            const volumeGain = ctx.createGain();
+            volumeGain.gain.value = track.volume;
+
+            const wetAmt = Math.max(0, Math.min(1, (Number(track.reverb) || 0) / 100));
+            if (wetAmt < 0.002) {
+                envelope.connect(volumeGain);
+                return { source, envelope, volumeGain };
+            }
+
+            const dry = ctx.createGain();
+            const wet = ctx.createGain();
+            const conv = ctx.createConvolver();
+            conv.buffer = getReverbImpulseForContext(ctx);
+            const merge = ctx.createGain();
+
+            dry.gain.value = Math.cos(wetAmt * Math.PI * 0.5);
+            wet.gain.value = Math.sin(wetAmt * Math.PI * 0.5);
+
+            envelope.connect(dry);
+            envelope.connect(conv);
+            conv.connect(wet);
+            dry.connect(merge);
+            wet.connect(merge);
+            merge.connect(volumeGain);
+
+            return { source, envelope, volumeGain, dry, wet, conv, merge };
+        }
+
+        function applyTrackEnvelope(envelope, track, when, wallDur) {
+            envelope.gain.setValueAtTime(0, when);
+            envelope.gain.linearRampToValueAtTime(1, when + track.fadeInDuration);
+            const fadeOutStart = when + wallDur - track.fadeOutDuration;
+            if (track.fadeOutDuration > 0) {
+                envelope.gain.setValueAtTime(1, fadeOutStart);
+                envelope.gain.linearRampToValueAtTime(0, when + wallDur);
+            }
+        }
+
         function initAudioContext() {
             if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
             return audioContext;
@@ -610,12 +784,14 @@
 
         async function loadFiles(files) {
             initAudioContext();
+            const wantNr = document.getElementById('upload-noise-reduction') && document.getElementById('upload-noise-reduction').checked;
             for (let file of files) {
                 if (!file.type.startsWith('audio/')) continue;
 
                 try {
                     const arrayBuffer = await file.arrayBuffer();
-                    const buffer = await audioContext.decodeAudioData(arrayBuffer);
+                    let buffer = await audioContext.decodeAudioData(arrayBuffer);
+                    if (wantNr) buffer = applyNoiseReductionToBuffer(audioContext, buffer);
 
                     const defaultFade = Math.min(1.5, buffer.duration * 0.1);
                     tracks.push({
@@ -629,7 +805,9 @@
                         fadeOutDuration: defaultFade,
                         volume: 1,
                         muted: false,
-                        offset: 0
+                        offset: 0,
+                        pitchSemitones: 0,
+                        reverb: 0
                     });
                 } catch (err) {
                     console.error(err);
@@ -669,9 +847,7 @@
             if (customTimelineEnabled) return customTimelineLength;
             let maxDur = 0;
             tracks.forEach(t => {
-                if (!t.muted && t.trimEnd > t.trimStart) {
-                    maxDur = Math.max(maxDur, (t.offset || 0) + (t.trimEnd - t.trimStart));
-                }
+                maxDur = Math.max(maxDur, getTrackMixEnd(t));
             });
             return maxDur || 1;
         }
@@ -736,7 +912,7 @@
 
             tlTrackRects = [];
             activeTracks.forEach((track, i) => {
-                const dur = track.trimEnd - track.trimStart;
+                const dur = getTrackWallDuration(track);
                 const off = track.offset || 0;
                 const barX = (off / totalDur) * w;
                 const barW = (dur / totalDur) * w;
@@ -841,8 +1017,8 @@
 
                 const track = tracks.find(t => t.id === tlDragState.trackId);
                 if (track) {
-                    const trackDur = track.trimEnd - track.trimStart;
-                    newOffset = Math.min(newOffset, tlDragState.scale - trackDur);
+                    const span = getTrackWallDuration(track) + getReverbTailSeconds(track);
+                    newOffset = Math.min(newOffset, Math.max(0, tlDragState.scale - span));
                     newOffset = Math.max(0, newOffset);
                     track.offset = newOffset;
                     syncTrackInputs(tlDragState.trackId, track);
@@ -910,14 +1086,19 @@
                             <div><label>${I18n.t('audio.labelFadeOut')}</label><input type="number" step="0.1" min="0" value="${track.fadeOutDuration}" onchange="updateFade('${track.id}','fadeOutDuration',parseFloat(this.value))"></div>
                             <div><label>${I18n.t('audio.labelOffset')}</label><input type="number" step="0.1" min="0" value="${(track.offset||0).toFixed(2)}" onchange="updateOffset('${track.id}',parseFloat(this.value))"></div>
                             <div><label>${I18n.t('audio.labelVolume')}</label><input type="range" min="0" max="200" value="${track.volume*100}" oninput="updateTrack('${track.id}','volume',this.value/100);this.nextElementSibling.textContent=this.value+'%'"><span class="vol-display">${Math.round(track.volume*100)}%</span></div>
-                            <div style="display:flex;align-items:end;padding-bottom:2px;"><label style="margin:0;cursor:pointer;"><input type="checkbox" ${track.muted?'checked':''} onchange="updateTrack('${track.id}','muted',this.checked)"> ${I18n.t('audio.muteInMix')}</label></div>
+                            <div><label title="${I18n.t('audio.pitchHint')}">${I18n.t('audio.labelPitch')}</label><input type="number" step="0.5" min="-24" max="24" data-pitch-input value="${Number(track.pitchSemitones) || 0}" onchange="updateTrackPitch('${track.id}',parseFloat(this.value))"></div>
+                            <div><label>${I18n.t('audio.labelReverb')}</label><input type="range" min="0" max="100" data-reverb-slider value="${Math.round(Number(track.reverb) || 0)}" oninput="updateTrackReverb('${track.id}',parseFloat(this.value),this)"><span class="vol-display">${Math.round(Number(track.reverb) || 0)}%</span></div>
+                            <div>
+                                <label class="mute-mix-spacer-label" aria-hidden="true">&nbsp;</label>
+                                <label class="mute-mix-control"><input type="checkbox" ${track.muted?'checked':''} onchange="updateTrack('${track.id}','muted',this.checked)"> ${I18n.t('audio.muteInMix')}</label>
+                            </div>
                         </div>
                         <div class="action-buttons">
                             <button class="mac-btn" onclick="toggleTrack('${track.id}')">&#9654; ${I18n.t('audio.playWFades')}</button>
                             <button class="mac-btn" onclick="applyTrim('${track.id}')">&#9986; ${I18n.t('audio.trim')}</button>
                             <button class="mac-btn mac-btn-danger" onclick="deleteTrack('${track.id}')">&#9003; ${I18n.t('audio.delete')}</button>
                         </div>
-                        <div class="info-text">${I18n.t('audio.infoThickLines')}</div>
+                        <div class="info-text">${I18n.t('audio.infoThickLines')} — ${I18n.t('audio.pitchHint')}</div>
                     </div>
                 `;
                 container.appendChild(div);
@@ -1099,6 +1280,14 @@
             if (inputs[2]) inputs[2].value = track.fadeInDuration.toFixed(1);
             if (inputs[3]) inputs[3].value = track.fadeOutDuration.toFixed(1);
             if (inputs[4]) inputs[4].value = (track.offset || 0).toFixed(2);
+            const pitchIn = card.querySelector('[data-pitch-input]');
+            if (pitchIn) pitchIn.value = Number(track.pitchSemitones) || 0;
+            const revIn = card.querySelector('[data-reverb-slider]');
+            if (revIn) {
+                revIn.value = Math.round(Number(track.reverb) || 0);
+                const sp = revIn.nextElementSibling;
+                if (sp && sp.classList.contains('vol-display')) sp.textContent = revIn.value + '%';
+            }
             const durEl = card.querySelector('.track-duration');
             if (durEl) durEl.textContent = (track.trimEnd - track.trimStart).toFixed(1) + 's';
         }
@@ -1148,6 +1337,25 @@
             renderTracks();
         }
 
+        function updateTrackPitch(id, value) {
+            const track = tracks.find(t => t.id === id);
+            if (!track) return;
+            if (!Number.isFinite(value)) value = 0;
+            track.pitchSemitones = Math.max(-24, Math.min(24, value));
+            renderGlobalTimeline();
+            syncTrackInputs(id, track);
+        }
+
+        function updateTrackReverb(id, value, el) {
+            const track = tracks.find(t => t.id === id);
+            if (!track) return;
+            track.reverb = Math.max(0, Math.min(100, value));
+            if (el && el.nextElementSibling && el.nextElementSibling.classList.contains('vol-display')) {
+                el.nextElementSibling.textContent = Math.round(track.reverb) + '%';
+            }
+            renderGlobalTimeline();
+        }
+
         function toggleTrack(id) {
             if (activeTrackPlayers.has(id)) stopTrack(id);
             else playTrack(id, 0);
@@ -1159,32 +1367,21 @@
             if (!track) return;
 
             const ctx = initAudioContext();
-            const source = ctx.createBufferSource();
-            source.buffer = track.buffer;
-
-            const envelope = ctx.createGain();
-            const volumeGain = ctx.createGain();
-            volumeGain.gain.value = track.volume;
-
-            source.connect(envelope).connect(volumeGain).connect(ctx.destination);
+            const g = buildTrackGraph(ctx, track);
+            g.volumeGain.connect(ctx.destination);
 
             const trimDur = track.trimEnd - track.trimStart;
+            const rate = getTrackPlaybackRate(track);
             const startPos = track.trimStart + relativeSeek;
-            const playDur = trimDur - relativeSeek;
+            const playBufRemain = trimDur - relativeSeek;
+            const wallDur = playBufRemain / rate;
             const startTime = ctx.currentTime;
 
-            envelope.gain.setValueAtTime(0, startTime);
-            envelope.gain.linearRampToValueAtTime(1, startTime + track.fadeInDuration);
+            applyTrackEnvelope(g.envelope, track, startTime, wallDur);
 
-            const fadeOutStart = startTime + playDur - track.fadeOutDuration;
-            if (track.fadeOutDuration > 0) {
-                envelope.gain.setValueAtTime(1, fadeOutStart);
-                envelope.gain.linearRampToValueAtTime(0, startTime + playDur);
-            }
+            g.source.start(startTime, startPos, playBufRemain);
 
-            source.start(startTime, startPos, playDur);
-
-            activeTrackPlayers.set(id, { source, startTime, seekOffset: relativeSeek, track, raf: null });
+            activeTrackPlayers.set(id, { source: g.source, startTime, seekOffset: relativeSeek, track, raf: null });
             updateTrackPlayhead(id);
         }
 
@@ -1202,7 +1399,8 @@
         function updateTrackPlayhead(id) {
             const p = activeTrackPlayers.get(id);
             if (!p) return;
-            const elapsed = audioContext.currentTime - p.startTime + p.seekOffset;
+            const rate = getTrackPlaybackRate(p.track);
+            const elapsed = (audioContext.currentTime - p.startTime) * rate + p.seekOffset;
             const dur = p.track.trimEnd - p.track.trimStart;
             const percent = Math.min(elapsed / dur, 1);
 
@@ -1282,28 +1480,17 @@
             tracks.forEach(track => {
                 if (track.muted || track.trimEnd <= track.trimStart) return;
 
-                const source = audioContext.createBufferSource();
-                source.buffer = track.buffer;
-                const envelope = audioContext.createGain();
-                const volumeGain = audioContext.createGain();
-                volumeGain.gain.value = track.volume;
+                const g = buildTrackGraph(audioContext, track);
+                g.volumeGain.connect(audioContext.destination);
 
-                source.connect(envelope).connect(volumeGain).connect(audioContext.destination);
-
-                const dur = track.trimEnd - track.trimStart;
+                const bufDur = track.trimEnd - track.trimStart;
+                const wallDur = getTrackWallDuration(track);
                 const trackStart = startTime + (track.offset || 0);
 
-                envelope.gain.setValueAtTime(0, trackStart);
-                envelope.gain.linearRampToValueAtTime(1, trackStart + track.fadeInDuration);
+                applyTrackEnvelope(g.envelope, track, trackStart, wallDur);
 
-                const fadeOutTime = trackStart + dur - track.fadeOutDuration;
-                if (track.fadeOutDuration > 0) {
-                    envelope.gain.setValueAtTime(1, fadeOutTime);
-                    envelope.gain.linearRampToValueAtTime(0, trackStart + dur);
-                }
-
-                source.start(trackStart, track.trimStart, dur);
-                mixPlayer.sources.push(source);
+                g.source.start(trackStart, track.trimStart, bufDur);
+                mixPlayer.sources.push(g.source);
             });
 
             updateMixProgress(maxDur);
@@ -1348,27 +1535,16 @@
 
             tracks.forEach(track => {
                 if (track.muted || track.trimEnd <= track.trimStart) return;
-                const source = offline.createBufferSource();
-                source.buffer = track.buffer;
-                const envelope = offline.createGain();
-                const volumeGain = offline.createGain();
-                volumeGain.gain.value = track.volume;
+                const g = buildTrackGraph(offline, track);
+                g.volumeGain.connect(offline.destination);
 
-                source.connect(envelope).connect(volumeGain).connect(offline.destination);
-
-                const dur = track.trimEnd - track.trimStart;
+                const bufDur = track.trimEnd - track.trimStart;
+                const wallDur = getTrackWallDuration(track);
                 const off = track.offset || 0;
 
-                envelope.gain.setValueAtTime(0, off);
-                envelope.gain.linearRampToValueAtTime(1, off + track.fadeInDuration);
+                applyTrackEnvelope(g.envelope, track, off, wallDur);
 
-                const fadeOutStart = off + dur - track.fadeOutDuration;
-                if (track.fadeOutDuration > 0) {
-                    envelope.gain.setValueAtTime(1, fadeOutStart);
-                    envelope.gain.linearRampToValueAtTime(0, off + dur);
-                }
-
-                source.start(off, track.trimStart, dur);
+                g.source.start(off, track.trimStart, bufDur);
             });
 
             const rendered = await offline.startRendering();
